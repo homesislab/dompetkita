@@ -12,7 +12,7 @@
 - [x] **Receipt Scanner Integration**: OCR capability using Google Gemini.
 - [x] 1. Lanjutkan task nya (Progress development UI/UX & AI Scanner backend).
 - [x] 2. Button "See Details" di family member belum jalan (Fixed event listener `view-member-btn` in `main.js`).
-- [x] 3. Konfigurasi API Key AI hardcode menjadi: `***REMOVED***`.
+- [x] 3. Konfigurasi API Key AI hardcode menjadi: `AIzaSyAtVSJkmyz7iJYlZdeFeCB8bVcqYHoLOPk`.
 - [x] 4. Buatkan list task yang sudah dan belum dikerjakan (Updated this file).
 - [x] 5. Pada mode malam, icon kurang terlihat (Updated `index.css` topbar icons).
 - [x] 6. Tombol FAB (+) harus membuka modal "Tambah Transaksi" dan "Scan Struk" ada di dalamnya (Refactored `openTransactionModal`).

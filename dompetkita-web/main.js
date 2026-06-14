@@ -2,7 +2,7 @@ import './style.css';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = window.location.origin.includes(':5173') ? 'http://localhost:8003/api' : '/api';
-const GEMINI_API_KEY = '***REMOVED***';
+const GEMINI_API_KEY = 'AIzaSyAtVSJkmyz7iJYlZdeFeCB8bVcqYHoLOPk';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
