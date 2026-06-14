@@ -1,48 +1,68 @@
-# Family Finance Tracker API Walkthrough
+# DompetKita — Family Finance Tracker API Walkthrough
 
-I have built a robust, production-ready RESTful API for your Family Finance Tracker using Laravel 11. The system follows a **Wallet/Ledger** architecture, ensuring data integrity and consistency.
+DompetKita is a RESTful family finance tracker built with **Laravel 11**. The system follows a
+**Wallet / Ledger** architecture to ensure data integrity and consistency across a shared
+household ledger.
 
-## Key Features
+## Key features
 
-- **Wallet Management**: Track multiple wallets with real-time balance updates.
-- **Transaction Ledger**: Atomic transaction processing for income, expenses, and transfers using `DB::transaction()` and row-level locking (`lockForUpdate`).
-- **Standardized API**: Consistent JSON response format across all endpoints.
-- **Monthly Summary**: Automated calculation of total balances and expenses grouped by category for the current month.
-- **Docker Ready**: Optimized `Dockerfile` and `docker-compose.yml` for local homelab deployment using PHP 8.2 and Nginx.
+- **Wallet management**: track multiple wallets per household with real-time balance updates.
+- **Transaction ledger**: atomic processing for income, expenses, and transfers using
+  `DB::transaction()` and row-level locking (`lockForUpdate`).
+- **Household isolation**: every request is scoped to a household and verified against
+  membership, so users cannot read or modify another household's data.
+- **Standardized API**: consistent JSON response format (`success`, `message`, `data`).
+- **Monthly summary**: total balances and expenses grouped by category for the current month.
+- **AI receipt scanner**: Google Gemini extracts store, date, total, line items, and a
+  predicted category. The Gemini key is read **server-side** from `GEMINI_API_KEY`.
+- **Docker ready**: `Dockerfile` + `docker-compose.yml` for local / homelab deployment.
 
-## Implementation Details
+## Implementation details
 
-### Models & Database
-- [Wallet.php](file:///home/gie/workspace/dompetkita/finance-api/app/Models/Wallet.php): Handles multiple wallets (e.g., 'Dompet Anggy').
-- [Category.php](file:///home/gie/workspace/dompetkita/finance-api/app/Models/Category.php): Categorizes financial flows into Income/Expense.
-- [Transaction.php](file:///home/gie/workspace/dompetkita/finance-api/app/Models/Transaction.php): The core ledger entry correctly tracking amounts, wallets, and categories.
+### Models & database (`dompetkita-api/app/Models`)
+- `Wallet.php` — wallets belonging to a household (bank, cash, e-wallet).
+- `Category.php` — classifies financial flows into income / expense.
+- `Transaction.php` — the core ledger entry tracking amounts, wallets, and categories.
+- `Household.php` / `HouseholdUser.php` — the shared ledger and its members.
 
-### API Controllers
-- [TransactionController.php](file:///home/gie/workspace/dompetkita/finance-api/app/Http/Controllers/Api/TransactionController.php): Contains the business logic for updating wallet balances atomically.
-- [SummaryController.php](file:///home/gie/workspace/dompetkita/finance-api/app/Http/Controllers/Api/SummaryController.php): Provides the data needed for the Flutter mobile app dashboard.
+### API controllers (`dompetkita-api/app/Http/Controllers/Api`)
+- `TransactionController.php` — atomic balance updates for income / expense / transfer,
+  plus edit, delete, and balance reconciliation.
+- `WalletController.php` — wallet CRUD, all scoped to the household.
+- `SummaryController.php` — dashboard summary data.
+- `ReceiptController.php` — AI receipt OCR via Gemini.
 
 ### Deployment
-- [Dockerfile](file:///home/gie/workspace/dompetkita/finance-api/Dockerfile) & [docker-compose.yml](file:///home/gie/workspace/dompetkita/finance-api/docker-compose.yml): Configured for an immediate "up and running" experience in your homelab.
+- `dompetkita-api/Dockerfile` & root `docker-compose.yml` — configured for an immediate
+  "up and running" experience.
 
-## How to Run
+## How to run (Docker)
 
-1. **Deploy with Docker**:
-   ```bash
-   cd finance-api
-   docker compose up -d
-   docker compose exec app php artisan migrate --seed
-   ```
-
-2. **Verify Endpoints**:
-   - `GET /api/wallets`: List all wallets.
-   - `GET /api/summary`: Dashboard summary data.
-   - `POST /api/transactions`: Create new income/expense/transfer.
-
-## Sample Request (Postman/cURL)
 ```bash
-curl -X POST http://localhost:8000/api/transactions \
+docker compose up -d
+docker compose exec api php artisan migrate --seed
+```
+
+- Web → http://localhost:8085
+- API (via nginx) → http://localhost:8004
+
+For local (non-Docker) development, see `RUNNING_GUIDE.md` — the backend runs on port **8003**.
+
+## Verify endpoints
+
+All resource endpoints are scoped under a household and require a Sanctum token:
+
+- `GET  /api/households/{householdId}/wallets` — list wallets.
+- `GET  /api/households/{householdId}/summary` — dashboard summary.
+- `POST /api/households/{householdId}/transactions` — create income / expense / transfer.
+
+### Sample request (cURL)
+
+```bash
+curl -X POST http://localhost:8003/api/households/1/transactions \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
+  -H "Authorization: Bearer <YOUR_SANCTUM_TOKEN>" \
   -d '{
     "type": "income",
     "amount": 500000,

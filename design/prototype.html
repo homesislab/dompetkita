@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DompetKita — Premium Revamp Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<style>
+/* ============================================================
+   DompetKita — Premium Design System 5.0 (Prototype)
+   Tokens → Theme → Shell → Components → Pages
+   ============================================================ */
+:root{
+  /* Brand */
+  --brand:#6366f1; --brand-600:#4f46e5; --brand-700:#4338ca;
+  --brand-subtle:rgba(99,102,241,.12); --brand-glow:rgba(99,102,241,.35);
+  --violet:#8b5cf6; --teal:#14b8a6;
+  /* Semantic */
+  --pos:#10b981; --pos-subtle:rgba(16,185,129,.14);
+  --neg:#f43f5e; --neg-subtle:rgba(244,63,94,.14);
+  --warn:#f59e0b; --warn-subtle:rgba(245,158,11,.14);
+  /* Chart palette */
+  --c1:#6366f1; --c2:#14b8a6; --c3:#f59e0b; --c4:#f43f5e; --c5:#8b5cf6; --c6:#0ea5e9;
+  /* Radius / shadow / motion */
+  --r-sm:8px; --r:14px; --r-lg:20px; --r-xl:28px; --r-full:999px;
+  --sh-1:0 1px 2px rgba(0,0,0,.18); --sh-2:0 10px 30px rgba(0,0,0,.22);
+  --sh-pop:0 18px 50px rgba(0,0,0,.35); --ring:0 0 0 4px var(--brand-subtle);
+  --ease:cubic-bezier(.16,1,.3,1); --t:.28s var(--ease);
+  --maxw:1320px;
+}
+/* Dark (default) */
+[data-theme="dark"]{
+  --bg:#0a0e17; --bg-soft:#0e1320; --surface:#131a2b; --surface-2:#1b2438; --surface-3:#27324c;
+  --border:rgba(255,255,255,.07); --border-strong:rgba(255,255,255,.14);
+  --text:#f6f8fc; --text-2:#9fb0c9; --text-3:#6b7a96;
+  --glass:saturate(160%) blur(18px);
+}
+/* Light */
+[data-theme="light"]{
+  --bg:#f4f6fb; --bg-soft:#eef1f8; --surface:#ffffff; --surface-2:#f6f8fc; --surface-3:#e9eef7;
+  --border:rgba(15,23,42,.08); --border-strong:rgba(15,23,42,.16);
+  --text:#0f172a; --text-2:#475569; --text-3:#8190a8;
+  --glass:saturate(160%) blur(18px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Outfit',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+h1,h2,h3,h4{letter-spacing:-.02em;font-weight:700;line-height:1.18}
+.muted{color:var(--text-2)} .dim{color:var(--text-3)}
+.pos{color:var(--pos)} .neg{color:var(--neg)}
+.mono{font-variant-numeric:tabular-nums}
+
+/* ---------- App shell ---------- */
+.app{display:grid;grid-template-columns:264px 1fr;min-height:100vh}
+.sidebar{
+  position:sticky;top:0;height:100vh;background:var(--bg-soft);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  padding:22px 16px;gap:6px;
+}
+.brand{display:flex;align-items:center;gap:12px;padding:6px 8px 18px}
+.brand .logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-size:22px;box-shadow:var(--sh-btn,0 6px 18px var(--brand-glow))}
+.brand b{font-size:1.2rem;font-weight:800}
+.brand small{display:block;color:var(--text-3);font-size:.72rem;font-weight:500;letter-spacing:.04em}
+.nav{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.nav-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);padding:14px 12px 6px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;color:var(--text-2);font-weight:500;transition:var(--t);position:relative}
+.nav-item i{font-size:20px}
+.nav-item:hover{background:var(--surface);color:var(--text)}
+.nav-item.active{background:var(--brand-subtle);color:var(--text);font-weight:600}
+.nav-item.active::before{content:"";position:absolute;left:-16px;top:50%;transform:translateY(-50%);width:4px;height:22px;border-radius:0 4px 4px 0;background:var(--brand)}
+.nav-item .pill{margin-left:auto;font-size:.66rem;background:var(--brand);color:#fff;padding:2px 8px;border-radius:var(--r-full);font-weight:700}
+.side-foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--surface)}
+.avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--brand));display:grid;place-items:center;color:#fff;font-weight:700}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;
+  padding:16px 28px;background:color-mix(in srgb,var(--bg) 78%,transparent);
+  backdrop-filter:var(--glass);border-bottom:1px solid var(--border)}
+.topbar h2{font-size:1.32rem}
+.search{flex:1;max-width:420px;display:flex;align-items:center;gap:10px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r-full);padding:9px 16px;color:var(--text-3)}
+.search input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:.92rem}
+.icon-btn{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--border);font-size:19px;color:var(--text-2);transition:var(--t)}
+.icon-btn:hover{color:var(--text);border-color:var(--border-strong);transform:translateY(-1px)}
+.seg{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-full);padding:3px}
+.seg button{padding:7px 14px;border-radius:var(--r-full);font-size:.82rem;font-weight:600;color:var(--text-2);transition:var(--t)}
+.seg button.on{background:var(--brand);color:#fff}
+.content{padding:28px;max-width:var(--maxw);width:100%;margin:0 auto}
+.page{display:none;animation:fade .45s var(--ease)}
+.page.show{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---------- Generic components ---------- */
+.grid{display:grid;gap:18px}
+.cols-2{grid-template-columns:repeat(2,1fr)} .cols-3{grid-template-columns:repeat(3,1fr)} .cols-4{grid-template-columns:repeat(4,1fr)}
+.span-2{grid-column:span 2}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:22px;box-shadow:var(--sh-1)}
+.card.glass{background:color-mix(in srgb,var(--surface) 80%,transparent);backdrop-filter:var(--glass)}
+.card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.card-h h3{font-size:1.02rem} .card-h .muted{font-size:.84rem}
+.section-t{display:flex;align-items:center;justify-content:space-between;margin:30px 0 14px}
+.section-t h3{font-size:1.05rem}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:12px;font-weight:600;font-size:.9rem;transition:var(--t)}
+.btn i{font-size:18px}
+.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand-600));color:#fff;box-shadow:0 8px 22px var(--brand-glow)}
+.btn-primary:hover{transform:translateY(-2px)}
+.btn-ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--border-strong)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:var(--r-full);font-size:.8rem;font-weight:600;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);transition:var(--t)}
+.chip.on{background:var(--brand-subtle);color:var(--text);border-color:transparent}
+.chip:hover{color:var(--text)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-full);font-size:.72rem;font-weight:700}
+.badge.pos{background:var(--pos-subtle);color:var(--pos)} .badge.neg{background:var(--neg-subtle);color:var(--neg)} .badge.warn{background:var(--warn-subtle);color:var(--warn)} .badge.brand{background:var(--brand-subtle);color:var(--brand)}
+.iconbox{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;flex:none}
+
+/* Hero net worth */
+.hero{position:relative;overflow:hidden;color:#fff;border:none;
+  background:radial-gradient(120% 140% at 0% 0%,#4f46e5 0%,#6366f1 38%,#8b5cf6 100%)}
+.hero::after{content:"";position:absolute;inset:0;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="2" cy="2" r="1" fill="white" opacity="0.10"/></svg>')}
+.hero>*{position:relative;z-index:1}
+.hero .lbl{opacity:.85;font-size:.85rem;font-weight:500;letter-spacing:.02em}
+.hero .amt{font-size:2.6rem;font-weight:800;margin:6px 0 2px;letter-spacing:-.03em}
+.hero .sub{display:flex;gap:18px;margin-top:18px;flex-wrap:wrap}
+.hero .sub div{background:rgba(255,255,255,.14);border-radius:14px;padding:12px 16px;backdrop-filter:blur(6px)}
+.hero .sub span{display:block;font-size:.74rem;opacity:.85} .hero .sub b{font-size:1.12rem}
+
+/* Stat cards */
+.stat{display:flex;flex-direction:column;gap:10px}
+.stat .top{display:flex;align-items:center;justify-content:space-between}
+.stat .v{font-size:1.7rem;font-weight:800;letter-spacing:-.02em}
+.stat .l{font-size:.84rem;color:var(--text-2);font-weight:500}
+
+/* Donut + legend */
+.donut-wrap{display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+.donut{width:170px;height:170px;border-radius:50%;flex:none;position:relative;
+  background:conic-gradient(var(--c1) 0 34%,var(--c2) 34% 56%,var(--c3) 56% 73%,var(--c4) 73% 87%,var(--c5) 87% 100%)}
+.donut::after{content:"";position:absolute;inset:24px;border-radius:50%;background:var(--surface)}
+.donut .mid{position:absolute;inset:0;display:grid;place-items:center;text-align:center;z-index:1}
+.donut .mid b{font-size:1.3rem} .donut .mid span{font-size:.74rem;color:var(--text-2)}
+.legend{flex:1;min-width:200px;display:flex;flex-direction:column;gap:12px}
+.legend .row{display:flex;align-items:center;gap:10px;font-size:.9rem}
+.legend .dot{width:11px;height:11px;border-radius:4px;flex:none}
+.legend .row b{margin-left:auto;font-variant-numeric:tabular-nums}
+
+/* Bars (cashflow) */
+.bars{display:flex;align-items:flex-end;gap:14px;height:180px;padding-top:10px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end}
+.bar-stack{width:100%;max-width:42px;display:flex;flex-direction:column-reverse;gap:4px;height:100%;justify-content:flex-start}
+.bar{width:100%;border-radius:7px 7px 0 0;transition:height 1s var(--ease)}
+.bar.in{background:linear-gradient(180deg,var(--pos),#0f9b76)}
+.bar.out{background:linear-gradient(180deg,var(--neg),#c81e42);border-radius:0 0 7px 7px}
+.bar-col small{color:var(--text-3);font-size:.74rem}
+
+/* Transaction list */
+.tx{display:flex;align-items:center;gap:14px;padding:14px 4px;border-bottom:1px solid var(--border)}
+.tx:last-child{border-bottom:none}
+.tx .meta{flex:1;min-width:0}
+.tx .meta b{font-size:.94rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx .meta span{font-size:.8rem;color:var(--text-3)}
+.tx .amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tx .by{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.66rem;font-weight:700;color:#fff}
+.date-h{font-size:.78rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:18px 0 4px}
+
+/* Wallet cards */
+.wallet{position:relative;overflow:hidden;border-radius:var(--r-lg);padding:20px;color:#fff;min-height:158px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--sh-2)}
+.wallet .type{font-size:.74rem;opacity:.85;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.wallet .nm{font-size:1.05rem;font-weight:700;margin-top:2px}
+.wallet .bal{font-size:1.6rem;font-weight:800;letter-spacing:-.02em}
+.wallet .cur{font-size:.78rem;opacity:.85}
+.wallet .chiprow{display:flex;gap:8px}
+.wallet .fx{background:rgba(255,255,255,.18);border-radius:8px;padding:3px 9px;font-size:.72rem;font-weight:600}
+.w1{background:linear-gradient(135deg,#4f46e5,#7c3aed)}
+.w2{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+.w3{background:linear-gradient(135deg,#b45309,#f59e0b)}
+.w4{background:linear-gradient(135deg,#9f1239,#f43f5e)}
+
+/* Meter (budget envelope) */
+.meter{margin-bottom:6px}
+.meter .mh{display:flex;justify-content:space-between;align-items:center;font-size:.9rem;margin-bottom:9px}
+.meter .track{height:10px;border-radius:var(--r-full);background:var(--surface-3);overflow:hidden}
+.meter .fill{height:100%;border-radius:var(--r-full);background:linear-gradient(90deg,var(--brand),var(--violet));transition:width 1s var(--ease)}
+.meter .fill.warn{background:linear-gradient(90deg,var(--warn),#ea580c)}
+.meter .fill.over{background:linear-gradient(90deg,var(--neg),#be123c)}
+.envelope{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2);margin-bottom:12px}
+.envelope .iconbox{width:42px;height:42px;font-size:20px}
+.envelope .body{flex:1}
+
+/* Recurring */
+.recur{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;transition:var(--t)}
+.recur:hover{border-color:var(--border-strong);transform:translatex(2px)}
+.recur .when{text-align:right;font-size:.8rem}
+.recur .when b{display:block;font-size:.92rem}
+
+/* Reports / export */
+.export-card{display:flex;align-items:center;gap:16px;padding:18px;border:1px dashed var(--border-strong);border-radius:var(--r);transition:var(--t)}
+.export-card:hover{background:var(--surface-2)}
+.kpi{display:flex;flex-direction:column;gap:4px;padding:16px;background:var(--surface-2);border-radius:var(--r)}
+.kpi b{font-size:1.4rem} .kpi span{font-size:.8rem;color:var(--text-2)}
+
+/* FAB + mobile nav */
+.fab{display:none}
+.mobile-nav{display:none}
+
+/* Toast */
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--text);color:var(--bg);
+  padding:13px 22px;border-radius:var(--r-full);font-weight:600;font-size:.9rem;box-shadow:var(--sh-pop);transition:var(--t);z-index:100}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ---------- Responsive ---------- */
+@media(max-width:1080px){.cols-4{grid-template-columns:repeat(2,1fr)}.cols-3{grid-template-columns:repeat(2,1fr)}.span-2{grid-column:span 1}}
+@media(max-width:820px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .cols-2,.cols-3,.cols-4{grid-template-columns:1fr}
+  .content{padding:18px 16px 110px}
+  .topbar{padding:14px 16px}.topbar .search{display:none}
+  .fab{display:grid;place-items:center;position:fixed;right:20px;bottom:84px;width:60px;height:60px;border-radius:20px;
+    background:linear-gradient(135deg,var(--brand),var(--brand-600));color:#fff;font-size:28px;box-shadow:0 12px 30px var(--brand-glow);z-index:40}
+  .mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:40;background:color-mix(in srgb,var(--bg) 82%,transparent);
+    backdrop-filter:var(--glass);border-top:1px solid var(--border);padding:8px 6px env(safe-area-inset-bottom)}
+  .mobile-nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;color:var(--text-3);font-size:.66rem;font-weight:600}
+  .mobile-nav button i{font-size:22px}
+  .mobile-nav button.active{color:var(--brand)}
+  .hero .amt{font-size:2.1rem}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo"><i class="ph-fill ph-wallet"></i></div>
+      <div><b>DompetKita</b><small>PREMIUM</small></div>
+    </div>
+    <div class="nav" id="sideNav">
+      <span class="nav-label">Utama</span>
+      <a class="nav-item active" data-page="dashboard"><i class="ph-fill ph-squares-four"></i> Dashboard</a>
+      <a class="nav-item" data-page="wallets"><i class="ph-fill ph-wallet"></i> Dompet</a>
+      <a class="nav-item" data-page="tx"><i class="ph-fill ph-arrows-left-right"></i> Transaksi</a>
+      <span class="nav-label">Perencanaan</span>
+      <a class="nav-item" data-page="budgets"><i class="ph-fill ph-chart-pie-slice"></i> Anggaran <span class="pill">3</span></a>
+      <a class="nav-item" data-page="recurring"><i class="ph-fill ph-repeat"></i> Berulang</a>
+      <a class="nav-item" data-page="reports"><i class="ph-fill ph-chart-line-up"></i> Laporan</a>
+    </div>
+    <div class="side-foot">
+      <div class="avatar">AM</div>
+      <div style="flex:1;min-width:0"><b style="font-size:.9rem">Anggy M.</b><br><span class="dim" style="font-size:.76rem">Keluarga Anggy</span></div>
+      <i class="ph ph-gear" style="font-size:18px;color:var(--text-3)"></i>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <h2 id="pageTitle">Dashboard</h2>
+      <div class="search"><i class="ph ph-magnifying-glass"></i><input placeholder="Cari transaksi, dompet, kategori…"></div>
+      <div class="seg" id="curSeg">
+        <button class="on" data-cur="IDR">IDR</button>
+        <button data-cur="USD">USD</button>
+      </div>
+      <button class="icon-btn" id="themeBtn" title="Ganti tema"><i class="ph-fill ph-moon"></i></button>
+      <button class="icon-btn"><i class="ph-fill ph-bell"></i></button>
+      <button class="btn btn-primary" onclick="toast('Modal Tambah Transaksi (prototype)')"><i class="ph ph-plus"></i> Tambah</button>
+    </header>
+    <main class="content">
+
+      <!-- ===== DASHBOARD ===== -->
+      <section class="page show" id="p-dashboard">
+        <div class="grid cols-3">
+          <div class="card hero span-2">
+            <div class="lbl">Total Kekayaan Bersih · Keluarga Anggy</div>
+            <div class="amt" data-money="284750000">Rp 284.750.000</div>
+            <span class="badge pos" style="background:rgba(255,255,255,.18);color:#fff"><i class="ph-fill ph-trend-up"></i> +8,4% bulan ini</span>
+            <div class="sub">
+              <div><span>Pemasukan (Jun)</span><b data-money="32500000">Rp 32.500.000</b></div>
+              <div><span>Pengeluaran (Jun)</span><b data-money="18420000">Rp 18.420.000</b></div>
+              <div><span>Tabungan</span><b>43% ↑</b></div>
+            </div>
+          </div>
+          <div class="card stat">
+            <div class="top"><span class="l">Arus Kas Bulan Ini</span><div class="iconbox" style="background:var(--pos-subtle);color:var(--pos)"><i class="ph-fill ph-wave-sine"></i></div></div>
+            <div class="v pos" data-money="14080000">+Rp 14.080.000</div>
+            <div class="meter"><div class="track"><div class="fill" style="width:62%"></div></div></div>
+            <span class="l">62% dari target surplus</span>
+          </div>
+        </div>
+
+        <div class="grid cols-2" style="margin-top:18px">
+          <div class="card">
+            <div class="card-h"><h3>Pengeluaran per Kategori</h3><span class="muted">Juni 2026</span></div>
+            <div class="donut-wrap">
+              <div class="donut"><div class="mid"><div><b data-money="18420000">Rp 18,4jt</b><span>Total</span></div></div></div>
+              <div class="legend">
+                <div class="row"><span class="dot" style="background:var(--c1)"></span> Rumah Tangga <b>34%</b></div>
+                <div class="row"><span class="dot" style="background:var(--c2)"></span> Transportasi <b>22%</b></div>
+                <div class="row"><span class="dot" style="background:var(--c3)"></span> Makan & Minum <b>17%</b></div>
+                <div class="row"><span class="dot" style="background:var(--c4)"></span> Pendidikan <b>14%</b></div>
+                <div class="row"><span class="dot" style="background:var(--c5)"></span> Lainnya <b>13%</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Arus Kas 6 Bulan</h3><span class="badge brand">Net +</span></div>
+            <div class="bars">
+              <div class="bar-col"><div class="bar-stack"><div class="bar in" style="height:55%"></div><div class="bar out" style="height:30%"></div></div><small>Jan</small></div>
+              <div class="bar-col"><div class="bar-stack"><div class="bar in" style="height:62%"></div><div class="bar out" style="height:40%"></div></div><small>Feb</small></div>
+              <div class="bar-col"><div class="bar-stack"><div class="bar in" style="height:48%"></div><div class="bar out" style="height:52%"></div></div><small>Mar</small></div>
+              <div class="bar-col"><div class="bar-stack"><div class="bar in" style="height:70%"></div><div class="bar out" style="height:38%"></div></div><small>Apr</small></div>
+              <div class="bar-col"><div class="bar-stack"><div class="bar in" style="height:66%"></div><div class="bar out" style="height:45%"></div></div><small>Mei</small></div>
+              <div class="bar-col"><div class="bar-stack"><div class="bar in" style="height:82%"></div><div class="bar out" style="height:46%"></div></div><small>Jun</small></div>
+            </div>
+            <div style="display:flex;gap:18px;margin-top:14px;font-size:.82rem">
+              <span class="row"><span class="badge pos">Masuk</span></span>
+              <span class="row"><span class="badge neg">Keluar</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-t"><h3>Transaksi Terbaru</h3><a class="chip" data-page="tx">Lihat semua <i class="ph ph-arrow-right"></i></a></div>
+        <div class="card">
+          <div class="tx"><div class="iconbox" style="background:var(--neg-subtle);color:var(--neg)"><i class="ph-fill ph-shopping-cart"></i></div><div class="meta"><b>Indomaret — Belanja Mingguan</b><span>Rumah Tangga · BCA Suami</span></div><div class="by" style="background:var(--teal)">IS</div><div class="amt neg">-Rp 285.000</div></div>
+          <div class="tx"><div class="iconbox" style="background:var(--pos-subtle);color:var(--pos)"><i class="ph-fill ph-money"></i></div><div class="meta"><b>Gaji Bulanan</b><span>Pemasukan · BCA Suami</span></div><div class="by" style="background:var(--brand)">AM</div><div class="amt pos">+Rp 28.000.000</div></div>
+          <div class="tx"><div class="iconbox" style="background:var(--brand-subtle);color:var(--brand)"><i class="ph-fill ph-arrows-left-right"></i></div><div class="meta"><b>Transfer ke Dompet Tunai</b><span>Transfer · admin Rp 6.500</span></div><div class="by" style="background:var(--brand)">AM</div><div class="amt">Rp 1.000.000</div></div>
+          <div class="tx"><div class="iconbox" style="background:var(--warn-subtle);color:var(--warn)"><i class="ph-fill ph-game-controller"></i></div><div class="meta"><b>Spotify Family</b><span>Langganan · Gopay</span></div><div class="by" style="background:var(--violet)">AN</div><div class="amt neg">-Rp 79.000</div></div>
+        </div>
+      </section>
+
+      <!-- ===== WALLETS ===== -->
+      <section class="page" id="p-wallets">
+        <div class="card glass" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:18px">
+          <div><span class="muted" style="font-size:.85rem">Total Saldo (base: IDR)</span><div style="font-size:2rem;font-weight:800" data-money="262300000">Rp 262.300.000</div></div>
+          <div style="display:flex;gap:10px;align-items:center"><span class="badge brand"><i class="ph ph-arrows-clockwise"></i> Kurs USD 1 = Rp 16.250</span><button class="btn btn-primary"><i class="ph ph-plus"></i> Dompet Baru</button></div>
+        </div>
+        <div class="grid cols-4">
+          <div class="wallet w1"><div><div class="type">Bank</div><div class="nm">BCA Suami</div></div><div><div class="bal">Rp 184.500.000</div><div class="chiprow"><span class="fx">IDR</span></div></div></div>
+          <div class="wallet w2"><div><div class="type">Tunai</div><div class="nm">Dompet Tunai Istri</div></div><div><div class="bal">Rp 3.200.000</div><div class="chiprow"><span class="fx">IDR</span></div></div></div>
+          <div class="wallet w3"><div><div class="type">E-Wallet</div><div class="nm">Gopay Belanja</div></div><div><div class="bal">Rp 1.350.000</div><div class="chiprow"><span class="fx">IDR</span></div></div></div>
+          <div class="wallet w4"><div><div class="type">Bank · Valas</div><div class="nm">Tabungan USD</div></div><div><div class="bal">$ 4.510</div><div class="cur">≈ Rp 73.287.500</div><div class="chiprow"><span class="fx">USD → IDR</span></div></div></div>
+        </div>
+        <div class="card" style="margin-top:18px">
+          <div class="card-h"><h3>Multi-Currency</h3><span class="muted">Konversi otomatis ke mata uang dasar rumah tangga</span></div>
+          <table>
+            <thead><tr><th>Dompet</th><th>Mata Uang</th><th>Saldo Asli</th><th>Kurs</th><th>Setara (IDR)</th></tr></thead>
+            <tbody>
+              <tr><td>BCA Suami</td><td>IDR</td><td class="mono">184.500.000</td><td>1,0000</td><td class="mono">Rp 184.500.000</td></tr>
+              <tr><td>Tabungan USD</td><td>USD</td><td class="mono">4.510,00</td><td>16.250</td><td class="mono">Rp 73.287.500</td></tr>
+              <tr><td>Gopay Belanja</td><td>IDR</td><td class="mono">1.350.000</td><td>1,0000</td><td class="mono">Rp 1.350.000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== TRANSACTIONS ===== -->
+      <section class="page" id="p-tx">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+          <span class="chip on">Semua</span><span class="chip">Pemasukan</span><span class="chip">Pengeluaran</span><span class="chip">Transfer</span><span class="chip">Langganan</span><span class="chip"><i class="ph ph-sliders-horizontal"></i> Filter</span>
+        </div>
+        <div class="card">
+          <div class="date-h">Hari ini · 14 Jun 2026</div>
+          <div class="tx"><div class="iconbox" style="background:var(--neg-subtle);color:var(--neg)"><i class="ph-fill ph-shopping-cart"></i></div><div class="meta"><b>Indomaret — Belanja Mingguan</b><span>Rumah Tangga · BCA Suami · oleh Istri</span></div><div class="amt neg">-Rp 285.000</div></div>
+          <div class="tx"><div class="iconbox" style="background:var(--warn-subtle);color:var(--warn)"><i class="ph-fill ph-music-notes"></i></div><div class="meta"><b>Spotify Family</b><span>Langganan · Gopay · otomatis</span></div><div class="amt neg">-Rp 79.000</div></div>
+          <div class="date-h">Kemarin · 13 Jun 2026</div>
+          <div class="tx"><div class="iconbox" style="background:var(--pos-subtle);color:var(--pos)"><i class="ph-fill ph-money"></i></div><div class="meta"><b>Gaji Bulanan</b><span>Pemasukan · BCA Suami</span></div><div class="amt pos">+Rp 28.000.000</div></div>
+          <div class="tx"><div class="iconbox" style="background:var(--brand-subtle);color:var(--brand)"><i class="ph-fill ph-arrows-left-right"></i></div><div class="meta"><b>Transfer ke Dompet Tunai</b><span>Transfer · admin Rp 6.500</span></div><div class="amt">Rp 1.000.000</div></div>
+          <div class="tx"><div class="iconbox" style="background:var(--neg-subtle);color:var(--neg)"><i class="ph-fill ph-fork-knife"></i></div><div class="meta"><b>Makan keluarga — Bakso</b><span>Makan & Minum · Dompet Tunai</span></div><div class="amt neg">-Rp 145.000</div></div>
+        </div>
+      </section>
+
+      <!-- ===== BUDGETS (envelope) ===== -->
+      <section class="page" id="p-budgets">
+        <div class="grid cols-3" style="margin-bottom:8px">
+          <div class="kpi"><span>Total Anggaran Juni</span><b data-money="20000000">Rp 20.000.000</b></div>
+          <div class="kpi"><span>Terpakai</span><b class="neg" data-money="18420000">Rp 18.420.000</b></div>
+          <div class="kpi"><span>Sisa Amplop</span><b class="pos" data-money="1580000">Rp 1.580.000</b></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Anggaran Amplop (Envelope)</h3><button class="btn btn-ghost"><i class="ph ph-plus"></i> Amplop Baru</button></div>
+          <div class="envelope"><div class="iconbox" style="background:var(--c1)22;color:var(--c1)"><i class="ph-fill ph-house"></i></div><div class="body"><div class="meter"><div class="mh"><b>Rumah Tangga</b><span class="muted">Rp 6,3jt / Rp 7jt</span></div><div class="track"><div class="fill" style="width:90%"></div></div></div></div></div>
+          <div class="envelope"><div class="iconbox" style="background:var(--c2)22;color:var(--c2)"><i class="ph-fill ph-car"></i></div><div class="body"><div class="meter"><div class="mh"><b>Transportasi</b><span class="muted">Rp 4,1jt / Rp 4jt</span></div><div class="track"><div class="fill over" style="width:100%"></div></div></div></div></div>
+          <div class="envelope"><div class="iconbox" style="background:var(--c3)22;color:var(--c3)"><i class="ph-fill ph-fork-knife"></i></div><div class="body"><div class="meter"><div class="mh"><b>Makan & Minum</b><span class="muted">Rp 2,4jt / Rp 3jt</span></div><div class="track"><div class="fill" style="width:80%"></div></div></div></div></div>
+          <div class="envelope"><div class="iconbox" style="background:var(--c4)22;color:var(--c4)"><i class="ph-fill ph-student"></i></div><div class="body"><div class="meter"><div class="mh"><b>Pendidikan</b><span class="muted">Rp 1,9jt / Rp 4jt</span></div><div class="track"><div class="fill" style="width:48%"></div></div></div></div></div>
+        </div>
+      </section>
+
+      <!-- ===== RECURRING ===== -->
+      <section class="page" id="p-recurring">
+        <div class="grid cols-3" style="margin-bottom:8px">
+          <div class="kpi"><span>Langganan Aktif</span><b>6</b></div>
+          <div class="kpi"><span>Total / Bulan</span><b class="neg" data-money="684000">Rp 684.000</b></div>
+          <div class="kpi"><span>Tagihan 7 Hari</span><b class="warn">2</b></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Transaksi Berulang & Langganan</h3><button class="btn btn-ghost"><i class="ph ph-plus"></i> Tambah</button></div>
+          <div class="recur"><div class="iconbox" style="background:var(--pos-subtle);color:var(--pos)"><i class="ph-fill ph-money"></i></div><div class="meta" style="flex:1"><b>Gaji Bulanan</b><br><span class="dim">Tiap tgl 25 · ke BCA Suami</span></div><span class="badge pos">Pemasukan</span><div class="when"><b>25 Jun</b><span class="dim">11 hari lagi</span></div></div>
+          <div class="recur"><div class="iconbox" style="background:var(--warn-subtle);color:var(--warn)"><i class="ph-fill ph-music-notes"></i></div><div class="meta" style="flex:1"><b>Spotify Family</b><br><span class="dim">Tiap tgl 14 · Gopay</span></div><span class="badge brand">Langganan</span><div class="when"><b>14 Jul</b><span class="dim">Rp 79.000</span></div></div>
+          <div class="recur"><div class="iconbox" style="background:var(--neg-subtle);color:var(--neg)"><i class="ph-fill ph-television"></i></div><div class="meta" style="flex:1"><b>Netflix Premium</b><br><span class="dim">Tiap tgl 16 · BCA Suami</span></div><span class="badge warn">3 hari lagi</span><div class="when"><b>16 Jun</b><span class="dim">Rp 186.000</span></div></div>
+          <div class="recur"><div class="iconbox" style="background:var(--brand-subtle);color:var(--brand)"><i class="ph-fill ph-wifi-high"></i></div><div class="meta" style="flex:1"><b>Internet IndiHome</b><br><span class="dim">Tiap tgl 20 · BCA Suami</span></div><span class="badge brand">Tagihan</span><div class="when"><b>20 Jun</b><span class="dim">Rp 350.000</span></div></div>
+        </div>
+      </section>
+
+      <!-- ===== REPORTS / EXPORT ===== -->
+      <section class="page" id="p-reports">
+        <div class="card glass" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:18px">
+          <div style="display:flex;gap:8px"><span class="chip">Minggu</span><span class="chip on">Bulan</span><span class="chip">Kuartal</span><span class="chip">Tahun</span><span class="chip"><i class="ph ph-calendar"></i> Kustom</span></div>
+          <span class="muted">Periode: Juni 2026</span>
+        </div>
+        <div class="grid cols-4" style="margin-bottom:18px">
+          <div class="kpi"><span>Pemasukan</span><b class="pos">Rp 32,5jt</b></div>
+          <div class="kpi"><span>Pengeluaran</span><b class="neg">Rp 18,4jt</b></div>
+          <div class="kpi"><span>Selisih</span><b class="pos">+Rp 14,1jt</b></div>
+          <div class="kpi"><span>Rasio Tabungan</span><b>43%</b></div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card">
+            <div class="card-h"><h3>Siapa Belanja Apa</h3><span class="muted">Per anggota</span></div>
+            <div class="meter"><div class="mh"><b>Anggy (Suami)</b><span class="muted">Rp 9,8jt</span></div><div class="track"><div class="fill" style="width:53%"></div></div></div>
+            <div class="meter"><div class="mh"><b>Istri</b><span class="muted">Rp 7,2jt</span></div><div class="track"><div class="fill" style="width:39%"></div></div></div>
+            <div class="meter"><div class="mh"><b>Anak</b><span class="muted">Rp 1,4jt</span></div><div class="track"><div class="fill" style="width:8%"></div></div></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Ekspor Laporan</h3><span class="badge brand">Premium</span></div>
+            <div class="export-card" onclick="toast('Mengekspor PDF… (prototype)')"><div class="iconbox" style="background:var(--neg-subtle);color:var(--neg)"><i class="ph-fill ph-file-pdf"></i></div><div style="flex:1"><b>Laporan PDF</b><br><span class="dim">Ringkasan rapi siap cetak / kirim</span></div><i class="ph ph-download-simple" style="font-size:22px"></i></div>
+            <div style="height:12px"></div>
+            <div class="export-card" onclick="toast('Mengekspor Excel… (prototype)')"><div class="iconbox" style="background:var(--pos-subtle);color:var(--pos)"><i class="ph-fill ph-microsoft-excel-logo"></i></div><div style="flex:1"><b>Spreadsheet Excel (.xlsx)</b><br><span class="dim">Semua transaksi + pivot per kategori</span></div><i class="ph ph-download-simple" style="font-size:22px"></i></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- Mobile -->
+<button class="fab" onclick="toast('Modal Tambah Transaksi (prototype)')"><i class="ph ph-plus"></i></button>
+<nav class="mobile-nav" id="mobileNav">
+  <button class="active" data-page="dashboard"><i class="ph-fill ph-squares-four"></i>Beranda</button>
+  <button data-page="wallets"><i class="ph-fill ph-wallet"></i>Dompet</button>
+  <button data-page="tx"><i class="ph-fill ph-arrows-left-right"></i>Transaksi</button>
+  <button data-page="budgets"><i class="ph-fill ph-chart-pie-slice"></i>Anggaran</button>
+  <button data-page="reports"><i class="ph-fill ph-chart-line-up"></i>Laporan</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const titles={dashboard:'Dashboard',wallets:'Dompet',tx:'Transaksi',budgets:'Anggaran',recurring:'Berulang',reports:'Laporan'};
+function go(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('show'));
+  const el=document.getElementById('p-'+page); if(el)el.classList.add('show');
+  document.getElementById('pageTitle').textContent=titles[page]||page;
+  document.querySelectorAll('#sideNav .nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
+  document.querySelectorAll('#mobileNav button').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('[data-page]').forEach(el=>el.addEventListener('click',()=>go(el.dataset.page)));
+// Theme
+const tBtn=document.getElementById('themeBtn');
+tBtn.addEventListener('click',()=>{
+  const root=document.documentElement;
+  const dark=root.getAttribute('data-theme')==='dark';
+  root.setAttribute('data-theme',dark?'light':'dark');
+  tBtn.innerHTML=dark?'<i class="ph-fill ph-sun"></i>':'<i class="ph-fill ph-moon"></i>';
+});
+// Currency segment
+document.querySelectorAll('#curSeg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#curSeg button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); toast('Tampilan mata uang: '+b.dataset.cur+' (prototype)');
+}));
+// Toast
+let tTimer; function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(tTimer);tTimer=setTimeout(()=>t.classList.remove('show'),2400);}
+</script>
+</body>
+</html>

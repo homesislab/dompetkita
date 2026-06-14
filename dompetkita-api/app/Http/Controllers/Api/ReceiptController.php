@@ -14,9 +14,11 @@ class ReceiptController extends Controller
             'image' => 'required|image|max:10240', // 10MB Max
         ]);
 
-        $apiKey = $request->header('X-Gemini-Key') ?: config('services.gemini.key');
+        // Read the Gemini key from server-side config only. It must never be sent
+        // from (or exposed to) the browser.
+        $apiKey = config('services.gemini.key');
         if (!$apiKey) {
-            return response()->json(['message' => 'Gemini API key is not configured. Please set it in AI Config.'], 500);
+            return response()->json(['message' => 'Gemini API key is not configured. Set GEMINI_API_KEY in the backend .env file.'], 500);
         }
 
         try {

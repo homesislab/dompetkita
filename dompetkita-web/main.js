@@ -1,8 +1,7 @@
 import './style.css';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-const API_BASE = window.location.origin.includes(':5173') ? 'http://localhost:8003/api' : '/api';
-
+const API_BASE = import.meta.env.VITE_API_BASE || (window.location.origin.includes(':5173') ? 'http://localhost:8003/api' : '/api');
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
@@ -2807,7 +2806,8 @@ window.openProfileModal = () => {
 };
 
 
-// AI Config page removed
+// AI Config page removed — the Gemini API key now lives server-side (GEMINI_API_KEY env on the backend) and is never exposed to the browser
+
 // BOOTSTRAP
 // ─────────────────────────────────────────────────────────────────────────────
 async function boot() {

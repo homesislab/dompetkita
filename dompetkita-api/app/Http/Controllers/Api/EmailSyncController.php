@@ -130,11 +130,12 @@ class EmailSyncController extends Controller
             ], 422);
         }
 
-        $apiKey = $request->header('X-Gemini-Key') ?: config('services.gemini.key');
+        // Read the Gemini key from server-side config only — never from the client.
+        $apiKey = config('services.gemini.key');
         if (!$apiKey) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gemini API key belum dikonfigurasi.',
+                'message' => 'Gemini API key belum dikonfigurasi. Set GEMINI_API_KEY di file .env backend.',
             ], 500);
         }
 
