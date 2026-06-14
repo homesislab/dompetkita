@@ -1,0 +1,145 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class EmailParserService
+{
+    /**
+     * Map common sender domains to provider display names.
+     */
+    private const PROVIDER_MAP = [
+        'bankmandiri'  => 'Bank Mandiri',
+        'mandiri'      => 'Bank Mandiri',
+        'bca'          => 'Bank BCA',
+        'bni'          => 'Bank BNI',
+        'bri'          => 'Bank BRI',
+        'cimbniaga'    => 'CIMB Niaga',
+        'danamon'      => 'Bank Danamon',
+        'permatabank'  => 'PermataBank',
+        'gopay'        => 'GoPay',
+        'gojek'        => 'GoPay',
+        'shopee'       => 'Shopee Pay',
+        'ovo'          => 'OVO',
+        'dana'         => 'DANA',
+        'linkaja'      => 'LinkAja',
+        'jenius'       => 'Jenius',
+        'flip'         => 'Flip',
+    ];
+
+    /**
+     * Parse a list of raw emails using Gemini AI.
+     * Returns structured transaction data for each email.
+     */
+    public function parseEmails(array $rawEmails, string $apiKey): array
+    {
+        $results = [];
+
+        foreach ($rawEmails as $email) {
+            try {
+                $parsed = $this->parseOneEmail($email, $apiKey);
+                if ($parsed) {
+                    $parsed['message_id'] = $email['message_id'];
+                    $parsed['snippet']    = $email['snippet'] ?? '';
+                    $parsed['provider']   = $this->detectProvider($email['from'] ?? '');
+                    $results[] = $parsed;
+                }
+                
+                // Add a 2-second delay to prevent hitting Gemini API rate limits (HTTP 429)
+                sleep(2);
+                
+            } catch (\Exception $e) {
+                Log::warning("EmailParserService: failed to parse message {$email['message_id']}: " . $e->getMessage());
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Parse a single email using Gemini AI.
+     */
+    private function parseOneEmail(array $email, string $apiKey): ?array
+    {
+        $emailContent = "Subject: {$email['subject']}\nFrom: {$email['from']}\nDate: {$email['date']}\n\n{$email['body']}";
+
+        $prompt = <<<PROMPT
+Kamu adalah asisten keuangan yang menganalisis email notifikasi transaksi perbankan dan dompet digital Indonesia.
+
+Analisis email berikut dan ekstrak informasi transaksi. Balas HANYA dengan JSON mentah (tanpa markdown, tanpa backtick):
+
+{
+  "is_transaction": true,
+  "type": "expense",
+  "amount": 150000,
+  "merchant": "Indomaret",
+  "description": "Pembayaran di Indomaret via GoPay",
+  "transaction_date": "2026-05-03",
+  "currency": "IDR"
+}
+
+Aturan:
+- "is_transaction": true jika ini adalah notifikasi transaksi keuangan yang valid (debit, kredit, transfer, pembayaran). false jika bukan (promosi, OTP, info umum, dll).
+- "type": "expense" jika saldo berkurang (debit, pembayaran, penarikan), "income" jika saldo bertambah (kredit, top up, terima transfer)
+- "amount": nominal transaksi sebagai angka murni tanpa simbol, titik, koma (contoh: 150000)
+- "merchant": nama merchant/toko/pengirim/penerima transfer jika ada, atau null
+- "description": ringkasan singkat dalam Bahasa Indonesia (maksimal 60 karakter)
+- "transaction_date": tanggal transaksi format YYYY-MM-DD. Jika tidak ada gunakan hari ini.
+- "currency": selalu "IDR" kecuali jelas mata uang lain
+
+Email yang akan dianalisis:
+---
+{$emailContent}
+---
+PROMPT;
+
+        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            ->timeout(30)
+            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+                'contents' => [
+                    ['parts' => [['text' => $prompt]]]
+                ],
+                'generationConfig' => [
+                    'temperature'        => 0.1,
+                    'response_mime_type' => 'application/json',
+                ],
+            ]);
+
+        if (!$response->successful()) {
+            Log::warning('EmailParserService: Gemini API error ' . $response->status());
+            return null;
+        }
+
+        $result = $response->json();
+        $text   = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
+        $text   = str_replace(['```json', '```'], '', trim($text));
+        $parsed = json_decode($text, true);
+
+        if (!$parsed || json_last_error() !== JSON_ERROR_NONE) {
+            return null;
+        }
+
+        // Only return actual transactions
+        if (empty($parsed['is_transaction']) || $parsed['is_transaction'] === false) {
+            return null;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * Detect provider name from sender email address.
+     */
+    public function detectProvider(string $from): string
+    {
+        $from = strtolower($from);
+        foreach (self::PROVIDER_MAP as $key => $name) {
+            if (str_contains($from, $key)) {
+                return $name;
+            }
+        }
+        return 'Unknown';
+    }
+}
