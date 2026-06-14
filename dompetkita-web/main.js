@@ -3,6 +3,7 @@ import './style.css';
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = window.location.origin.includes(':5173') ? 'http://localhost:8003/api' : '/api';
 
+
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
   token: localStorage.getItem('token') || null,
