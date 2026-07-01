@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\SummaryController;
 use App\Http\Controllers\Api\BillReminderController;
 use App\Http\Controllers\Api\ReceiptGroupController;
 use App\Http\Controllers\Api\EmailSyncController;
+use App\Http\Controllers\Api\PocketController;
+use App\Http\Controllers\Api\PlannerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -116,7 +118,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/bill-reminders', [BillReminderController::class, 'index']);
         Route::post('/bill-reminders', [BillReminderController::class, 'store']);
         Route::put('/bill-reminders/{billReminder}', [BillReminderController::class, 'update']);
+        Route::post('/bill-reminders/{billReminder}/pay', [BillReminderController::class, 'pay']);
         Route::delete('/bill-reminders/{billReminder}', [BillReminderController::class, 'destroy']);
+
+        // Pockets (Kantong) — Dana Anak, tabungan, dll.
+        Route::get('/pockets', [PocketController::class, 'index']);
+        Route::post('/pockets', [PocketController::class, 'store']);
+        Route::get('/pockets/summary', [PocketController::class, 'summary']);
+        Route::put('/pockets/{pocketId}', [PocketController::class, 'update']);
+        Route::post('/pockets/{pocketId}/allocate', [PocketController::class, 'allocate']);
+        Route::delete('/pockets/{pocketId}', [PocketController::class, 'destroy']);
+
+        // Planner / Simulasi cashflow
+        Route::get('/planner', [PlannerController::class, 'show']);
     });
 });
 
