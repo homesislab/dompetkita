@@ -11,6 +11,7 @@ services:
       - ./dompetkita-api:/var/www
     networks:
       - dompetkita-network
+      - shared_apps
 
   # Nginx for Backend
   api-nginx:
@@ -24,6 +25,7 @@ services:
       - ./dompetkita-api/docker/nginx.conf:/etc/nginx/conf.d/default.conf
     networks:
       - dompetkita-network
+      - shared_apps
     depends_on:
       - api
 
@@ -40,9 +42,12 @@ services:
       - ./dompetkita-web/docker/nginx.conf:/etc/nginx/conf.d/default.conf
     networks:
       - dompetkita-network
+      - shared_apps
     depends_on:
       - api-nginx
 
 networks:
   dompetkita-network:
     driver: bridge
+  shared_apps:
+    external: true

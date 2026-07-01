@@ -19,8 +19,6 @@ return new class extends Migration
             $table->decimal('current_amount', 15, 2)->default(0);
             $table->string('color')->nullable();
             $table->date('deadline')->nullable();
-            $table->string('frequency')->default('none'); // none, daily, weekly, monthly, yearly
-            $table->decimal('target_per_period', 15, 2)->nullable();
             $table->timestamps();
         });
     }
