@@ -36,6 +36,9 @@ COPY docker/php/php.ini /usr/local/etc/php/conf.d/custom-php.ini
 # Configure PHP-FPM to listen on IPv4
 RUN echo "[www]\nlisten = 0.0.0.0:9000" > /usr/local/etc/php-fpm.d/zz-listen.conf
 
+# Install composer dependencies
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+
 # Setup storage directory and permissions
 RUN mkdir -p storage/app/public/receipts \
     && mkdir -p storage/framework/sessions \
