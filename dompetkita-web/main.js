@@ -46,7 +46,11 @@ async function api(endpoint, method = 'GET', body = null) {
     if (res.status === 204) return { success: true };
     
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Something went wrong');
+    if (!res.ok) {
+      const error = new Error(data.message || 'Something went wrong');
+      error.data = data;
+      throw error;
+    }
     return data;
   } catch (err) {
     if (!navigator.onLine && method === 'GET') {
@@ -387,6 +391,9 @@ function mountShell() {
         <div class="page-body" id="page-body"></div>
       </div>
       
+      <button class="fab-ai-tx" id="fab-ai-tx" title="Tambah dengan AI">
+        <i class="ph-fill ph-sparkle"></i><span>AI</span>
+      </button>
       <button class="fab-new-tx" id="fab-new-tx" title="New Transaction">
         <i class="ph ph-plus"></i>
       </button>
@@ -396,6 +403,7 @@ function mountShell() {
   `;
 
   document.getElementById('fab-new-tx').addEventListener('click', () => openTransactionModal());
+  document.getElementById('fab-ai-tx')?.addEventListener('click', () => openAiInputModal());
 
   document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -725,8 +733,27 @@ function setupWalletListeners() {
   });
   document.querySelectorAll('.delete-wallet-btn').forEach(btn => {
     btn.onclick = () => confirmDelete(`Delete wallet "${btn.dataset.name}"?`, async () => {
-      await api(`/households/${state.householdId}/wallets/${btn.dataset.id}`, 'DELETE');
-      toast('Wallet deleted!'); await refreshAll(); renderPage('wallets');
+      try {
+        await api(`/households/${state.householdId}/wallets/${btn.dataset.id}`, 'DELETE');
+        toast('Wallet deleted!'); await refreshAll(); renderPage('wallets');
+      } catch (err) {
+        if (err.data && err.data.requires_force) {
+          setTimeout(() => {
+            showConfirm(err.data.message, async () => {
+              await api(`/households/${state.householdId}/wallets/${btn.dataset.id}?force=1`, 'DELETE');
+              toast('Wallet & transactions deleted!'); await refreshAll(); renderPage('wallets');
+            }, {
+              title: 'Hapus Permanen',
+              icon: '<i class="ph-fill ph-warning"></i>',
+              btnText: 'Hapus Semua',
+              btnClass: 'btn-danger',
+              titleColor: 'var(--rose)'
+            });
+          }, 400);
+          return; // Prevents outer confirmDelete from showing error toast
+        }
+        throw err;
+      }
     });
   });
   if (document.getElementById('new-wallet-btn')) {
@@ -1126,7 +1153,131 @@ function openCategoryModal(cat = null) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TRANSACTION MODAL (Create)
 // ─────────────────────────────────────────────────────────────────────────────
-function openTransactionModal(editTx = null) {
+function openAiPlanModal() {
+  if (!state.householdId) { toast('Pilih keluarga dulu.', 'error'); return; }
+  const overlay = openModal(`
+    <div class="modal-overlay">
+      <div class="modal-sheet" style="max-width:500px">
+        <div class="modal-handle"></div>
+        <div class="modal-head">
+          <span class="modal-title"><i class="ph-fill ph-brain" style="color:var(--violet);margin-right:4px"></i> Rencana Keuangan (AI)</span>
+          <button class="modal-close"><i class="ph ph-x"></i></button>
+        </div>
+        <p style="color:var(--text-2);font-size:0.88rem;line-height:1.5;margin:0 0 0.8rem">Tempel <b>ringkasan keuangan keluarga</b>-mu. AI akan langsung membuat <b>dompet</b> (termasuk memisahkan dana anak), <b>kategori</b>, <b>anggaran bulanan</b>, dan transaksi awal secara otomatis.</p>
+        <textarea id="ai-plan-input" rows="9" placeholder="cth:\nGaji Anggy: Rp13.000.000\nDana anak Hamzah: Rp4.000.000 (Rp2jt di Anggy, Rp2jt di Dewi)\nListrik: Rp500.000/bln\nUang jajan Syuraih: Rp300.000/bln\nNaik kelas Syuraih: Rp5.000.000 (diambil dari dana anak)" style="width:100%;background:var(--surface-2);border-radius:var(--radius);padding:0.75rem 0.9rem;resize:vertical;color:var(--text-1);border:1px solid var(--border);font-size:0.92rem;line-height:1.5"></textarea>
+        <div style="display:flex;align-items:center;gap:0.4rem;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);border-radius:var(--radius);padding:0.55rem 0.7rem;font-size:0.78rem;color:#b45309;margin-top:0.7rem"><i class="ph-fill ph-warning"></i> AI akan langsung membuat data. Cek hasilnya setelah selesai.</div>
+        <button type="button" id="ai-plan-go" class="btn btn-full" style="background:linear-gradient(135deg,var(--violet),var(--primary));color:#fff;margin-top:0.9rem;font-weight:700"><i class="ph-fill ph-rocket-launch"></i> Buat & Jalankan</button>
+        <div id="ai-plan-loading" style="display:none;color:var(--violet);font-size:0.85rem;font-weight:600;margin-top:0.7rem;text-align:center"><i class="ph-fill ph-spinner-gap" style="animation:spin 1s linear infinite"></i> AI menyusun & menjalankan rencana…</div>
+      </div>
+    </div>
+  `);
+  const input = overlay.querySelector('#ai-plan-input');
+  setTimeout(() => input.focus(), 50);
+  const goBtn = overlay.querySelector('#ai-plan-go');
+  const loading = overlay.querySelector('#ai-plan-loading');
+  goBtn.addEventListener('click', async () => {
+    const text = (input.value || '').trim();
+    if (!text) { toast('Tempel dulu ringkasannya.', 'error'); return; }
+    loading.style.display = 'block';
+    goBtn.disabled = true; goBtn.style.opacity = '0.5';
+    try {
+      const res = await api(`/households/${state.householdId}/ai/plan`, 'POST', { text });
+      await refreshAll();
+      showAiPlanResult(res.data || {});
+      toast('Rencana berhasil dijalankan!', 'success');
+    } catch (err) {
+      loading.style.display = 'none';
+      goBtn.disabled = false; goBtn.style.opacity = '1';
+      toast(err.message || 'AI gagal menjalankan rencana.', 'error');
+    }
+  });
+}
+
+function showAiPlanResult(data) {
+  const c = data.created || {};
+  const listItems = (arr) => (arr && arr.length) ? arr.map(x => `<li>${x}</li>`).join('') : '<li style="color:var(--text-3)">—</li>';
+  const skipped = (c.skipped && c.skipped.length) ? `<div style="font-size:0.8rem;color:var(--text-3);margin-top:0.6rem">Dilewati: ${c.skipped.join('; ')}</div>` : '';
+  const notes = (data.notes && data.notes.length) ? `<div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius);padding:0.7rem;font-size:0.82rem;color:var(--text-1);margin-top:0.9rem"><b style="color:var(--violet)"><i class="ph-fill ph-lightbulb"></i> Catatan & Prinsip</b><ul style="margin:0.35rem 0 0;padding-left:1.1rem">${data.notes.map(n => `<li>${n}</li>`).join('')}</ul></div>` : '';
+  const ov = openModal(`
+    <div class="modal-overlay">
+      <div class="modal-sheet" style="max-width:500px">
+        <div class="modal-handle"></div>
+        <div class="modal-head">
+          <span class="modal-title"><i class="ph-fill ph-check-circle" style="color:var(--emerald);margin-right:4px"></i> Rencana Dijalankan</span>
+          <button class="modal-close"><i class="ph ph-x"></i></button>
+        </div>
+        ${data.summary ? `<p style="color:var(--text-1);font-size:0.9rem;line-height:1.55;margin:0 0 1rem">${data.summary}</p>` : ''}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem">
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:0.7rem;text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--violet)">${(c.wallets||[]).length}</div><div style="font-size:0.74rem;color:var(--text-2)">Dompet baru</div></div>
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:0.7rem;text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--violet)">${(c.categories||[]).length}</div><div style="font-size:0.74rem;color:var(--text-2)">Kategori baru</div></div>
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:0.7rem;text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--violet)">${(c.budgets||[]).length}</div><div style="font-size:0.74rem;color:var(--text-2)">Anggaran</div></div>
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:0.7rem;text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--violet)">${(c.transactions||[]).length}</div><div style="font-size:0.74rem;color:var(--text-2)">Transaksi</div></div>
+        </div>
+        <details style="margin-top:0.9rem"><summary style="cursor:pointer;font-weight:700;font-size:0.85rem;color:var(--text-2)">Lihat rincian</summary>
+          <div style="font-size:0.82rem;color:var(--text-2);margin-top:0.5rem">
+            <b>Dompet</b><ul style="margin:0.2rem 0 0.6rem;padding-left:1.1rem">${listItems(c.wallets)}</ul>
+            <b>Kategori</b><ul style="margin:0.2rem 0 0.6rem;padding-left:1.1rem">${listItems(c.categories)}</ul>
+            <b>Anggaran</b><ul style="margin:0.2rem 0 0.6rem;padding-left:1.1rem">${listItems(c.budgets)}</ul>
+            <b>Transaksi</b><ul style="margin:0.2rem 0 0;padding-left:1.1rem">${listItems(c.transactions)}</ul>
+          </div>
+        </details>
+        ${skipped}
+        ${notes}
+        <button type="button" class="btn btn-primary btn-full modal-close" style="margin-top:1rem">Selesai</button>
+      </div>
+    </div>
+  `);
+  ov.querySelectorAll('.modal-close').forEach(b => b.addEventListener('click', () => closeModal()));
+}
+
+function openAiInputModal() {
+  if (!state.householdId) { toast('Pilih keluarga dulu.', 'error'); return; }
+  const overlay = openModal(`
+    <div class="modal-overlay">
+      <div class="modal-sheet" style="max-width:460px">
+        <div class="modal-handle"></div>
+        <div class="modal-head">
+          <span class="modal-title"><i class="ph-fill ph-sparkle" style="color:var(--violet);margin-right:4px"></i> Tambah dengan AI</span>
+          <button class="modal-close"><i class="ph ph-x"></i></button>
+        </div>
+        <p style="color:var(--text-2);font-size:0.9rem;line-height:1.5;margin:0 0 0.9rem">Tulis transaksimu pakai bahasa sehari-hari. AI menentukan sendiri <b>jenisnya</b> — pengeluaran, pemasukan, atau transfer — beserta nominal, dompet, dan kategori.</p>
+        <textarea id="ai-input" rows="3" placeholder="cth: jajan bakso 25rb pakai Cash tadi siang" style="width:100%;background:var(--surface-2);border-radius:var(--radius);padding:0.75rem 0.9rem;resize:vertical;color:var(--text-1);border:1px solid var(--border);font-size:0.95rem"></textarea>
+        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem">
+          <button type="button" class="ai-example" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);border-radius:999px;padding:0.3rem 0.7rem;font-size:0.78rem;cursor:pointer">jajan bakso 25rb pakai Cash</button>
+          <button type="button" class="ai-example" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);border-radius:999px;padding:0.3rem 0.7rem;font-size:0.78rem;cursor:pointer">gaji masuk 8jt ke BCA</button>
+          <button type="button" class="ai-example" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);border-radius:999px;padding:0.3rem 0.7rem;font-size:0.78rem;cursor:pointer">transfer 500rb dari BCA ke Cash</button>
+        </div>
+        <button type="button" id="ai-go-btn" class="btn btn-full" style="background:linear-gradient(135deg,var(--violet),var(--primary));color:#fff;margin-top:1rem;font-weight:700"><i class="ph-fill ph-magic-wand"></i> Analisa dengan AI</button>
+        <div id="ai-go-loading" style="display:none;color:var(--violet);font-size:0.85rem;font-weight:600;margin-top:0.7rem;text-align:center"><i class="ph-fill ph-spinner-gap" style="animation:spin 1s linear infinite"></i> AI sedang menganalisa…</div>
+        <button type="button" id="ai-plan-link" style="background:none;border:none;color:var(--violet);font-size:0.82rem;font-weight:700;cursor:pointer;margin-top:0.9rem;width:100%;text-align:center"><i class="ph ph-list-plus"></i> Punya ringkasan keuangan panjang? Buat rencana otomatis →</button>
+      </div>
+    </div>
+  `);
+  const input = overlay.querySelector('#ai-input');
+  overlay.querySelectorAll('.ai-example').forEach(b => b.addEventListener('click', () => { input.value = b.textContent; input.focus(); }));
+  setTimeout(() => input.focus(), 50);
+  overlay.querySelector('#ai-plan-link')?.addEventListener('click', () => openAiPlanModal());
+  const goBtn = overlay.querySelector('#ai-go-btn');
+  const loading = overlay.querySelector('#ai-go-loading');
+  goBtn.addEventListener('click', async () => {
+    const text = (input.value || '').trim();
+    if (!text) { toast('Tulis dulu transaksinya.', 'error'); return; }
+    loading.style.display = 'block';
+    goBtn.disabled = true; goBtn.style.opacity = '0.5';
+    try {
+      const res = await api(`/households/${state.householdId}/ai/parse-transaction`, 'POST', { text });
+      // openTransactionModal calls openModal which replaces this dialog in-place.
+      openTransactionModal(null, res.data || {});
+      toast('AI selesai. Cek & simpan ya!', 'success');
+    } catch (err) {
+      loading.style.display = 'none';
+      goBtn.disabled = false; goBtn.style.opacity = '1';
+      toast(err.message || 'AI gagal memproses teks.', 'error');
+    }
+  });
+}
+
+function openTransactionModal(editTx = null, prefill = null) {
   const wallets = state.wallets;
   const cats = state.categories;
   let currentType = editTx ? editTx.type : 'expense';
@@ -1138,9 +1289,6 @@ function openTransactionModal(editTx = null) {
         <div class="modal-head">
           <span class="modal-title">${editTx ? 'Edit Transaction' : 'New Transaction'}</span>
           <div style="display:flex;align-items:center;gap:0.5rem">
-            ${!editTx ? `<button type="button" id="ai-text-btn" class="btn btn-ghost btn-sm" style="color:var(--violet);background:rgba(139,92,246,0.12);font-weight:700" title="Ketik transaksi, dibantu AI">
-              <i class="ph-fill ph-sparkle"></i> Ketik (AI)
-            </button>` : ''}
             ${!editTx ? `<button type="button" id="scan-receipt-btn" class="btn btn-ghost btn-sm" style="color:var(--emerald);background:var(--emerald-subtle);font-weight:700" title="Scan struk untuk autofill">
               <i class="ph-fill ph-camera"></i> Scan Struk
             </button>` : ''}
@@ -1159,12 +1307,6 @@ function openTransactionModal(editTx = null) {
           <i class="ph-fill ph-spinner-gap" style="animation:spin 1s linear infinite"></i> AI is reading your receipt...
         </div>
 
-        <div id="ai-text-box" style="display:none;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.35);border-radius:var(--radius);padding:0.85rem;margin-bottom:1.25rem">
-          <div style="font-size:0.78rem;font-weight:700;color:var(--violet);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.4rem"><i class="ph-fill ph-sparkle"></i> Tulis transaksimu, biar AI yang isi</div>
-          <textarea id="ai-text-input" rows="2" placeholder="cth: jajan bakso 25rb pakai Cash tadi siang" style="width:100%;background:var(--surface-2);border-radius:var(--radius);padding:0.65rem 0.85rem;resize:vertical;color:var(--text-1);border:1px solid var(--border)"></textarea>
-          <button type="button" id="ai-parse-btn" class="btn btn-sm btn-full" style="background:linear-gradient(135deg,var(--violet),var(--primary));color:#fff;margin-top:0.6rem"><i class="ph-fill ph-magic-wand"></i> Isi otomatis</button>
-          <div id="ai-text-loading" style="display:none;color:var(--violet);font-size:0.83rem;font-weight:600;margin-top:0.5rem;text-align:center"><i class="ph-fill ph-spinner-gap" style="animation:spin 1s linear infinite"></i> AI sedang membaca…</div>
-        </div>
 
         <div class="amount-field">
           <div class="amount-label">Amount</div>
@@ -1374,59 +1516,6 @@ function openTransactionModal(editTx = null) {
     });
   }
 
-  // AI text input → autofill
-  const aiBtn = overlay.querySelector('#ai-text-btn');
-  const aiBox = overlay.querySelector('#ai-text-box');
-  if (aiBtn && aiBox) {
-    aiBtn.addEventListener('click', () => {
-      const show = aiBox.style.display === 'none';
-      aiBox.style.display = show ? 'block' : 'none';
-      if (show) overlay.querySelector('#ai-text-input')?.focus();
-    });
-
-    const aiParseBtn = overlay.querySelector('#ai-parse-btn');
-    const aiLoading = overlay.querySelector('#ai-text-loading');
-    aiParseBtn?.addEventListener('click', async () => {
-      const text = (overlay.querySelector('#ai-text-input').value || '').trim();
-      if (!text) { toast('Tulis dulu transaksinya.', 'error'); return; }
-      aiLoading.style.display = 'block';
-      aiParseBtn.disabled = true; aiParseBtn.style.opacity = '0.5';
-      try {
-        const res = await api(`/households/${state.householdId}/ai/parse-transaction`, 'POST', { text });
-        const d = res.data || {};
-
-        // Set the type first so category options + fields update.
-        if (d.type) {
-          const tbtn = overlay.querySelector(`.type-btn[data-type="${d.type}"]`);
-          if (tbtn) tbtn.click();
-        }
-
-        const setVal = (id, val) => {
-          const el = document.getElementById(id);
-          if (el && val !== null && val !== undefined && val !== '') {
-            el.value = val;
-            el.style.borderColor = 'var(--violet)';
-            setTimeout(() => { el.style.borderColor = ''; }, 3000);
-          }
-        };
-        setVal('tx-amount', d.amount);
-        if (d.wallet_id) setVal('tx-wallet', d.wallet_id);
-        if (d.type === 'transfer' && d.to_wallet_id) setVal('tx-to-wallet', d.to_wallet_id);
-        if (d.type !== 'transfer' && d.category_id) setVal('tx-category', d.category_id);
-        setVal('tx-date', d.transaction_date);
-        setVal('tx-desc', d.description);
-
-        aiBox.style.display = 'none';
-        toast('AI selesai mengisi. Cek lalu simpan ya!', 'success');
-      } catch (err) {
-        toast(err.message || 'AI gagal memproses teks.', 'error');
-      } finally {
-        aiLoading.style.display = 'none';
-        aiParseBtn.disabled = false; aiParseBtn.style.opacity = '1';
-      }
-    });
-  }
-
   // Type switching
   overlay.querySelectorAll('.type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1474,6 +1563,35 @@ function openTransactionModal(editTx = null) {
     const dateInput = document.getElementById('tx-date');
     if(dateInput && editTx.transaction_date) {
       dateInput.value = editTx.transaction_date.substring(0, 10);
+    }
+  }
+
+  // Pre-fill from the separate AI dialog (AI decides the type itself)
+  if (prefill) {
+    if (prefill.type) {
+      const t = overlay.querySelector(`.type-btn[data-type="${prefill.type}"]`);
+      if (t) t.click();
+    }
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val !== null && val !== undefined && val !== '') {
+        el.value = val;
+        el.style.borderColor = 'var(--violet)';
+        setTimeout(() => { el.style.borderColor = ''; }, 3000);
+      }
+    };
+    setVal('tx-amount', prefill.amount);
+    if (prefill.wallet_id) setVal('tx-wallet', prefill.wallet_id);
+    if (prefill.type === 'transfer' && prefill.to_wallet_id) setVal('tx-to-wallet', prefill.to_wallet_id);
+    if (prefill.type !== 'transfer' && prefill.category_id) setTimeout(() => setVal('tx-category', prefill.category_id), 60);
+    setVal('tx-date', prefill.transaction_date);
+    setVal('tx-desc', prefill.description);
+    const sw = overlay.querySelector('.type-switcher');
+    if (sw) {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'display:flex;align-items:center;gap:0.4rem;background:rgba(139,92,246,0.12);color:var(--violet);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius);padding:0.5rem 0.7rem;font-size:0.8rem;font-weight:700;margin-bottom:0.9rem';
+      banner.innerHTML = '<i class="ph-fill ph-sparkle"></i> Diisi otomatis oleh AI — periksa lalu simpan';
+      sw.parentNode.insertBefore(banner, sw.nextSibling);
     }
   }
 
@@ -1666,7 +1784,7 @@ function pageMembers() {
     </div>`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ──────���──────────────────────────────────────────────────────────────────────
 // PAGE: GOALS (Financial Targets)
 // ─────────────────────────────────────────────────────────────────────────────
 function pageGoals() {
@@ -2898,7 +3016,7 @@ boot();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PWA SERVICE WORKER REGISTRATION
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────���───────────────────────────────────────────────────────
 // SYNC BALANCE (RECONCILIATION)
 // ─────────────────────────────────────────────────────────────────────────────
 window.openSyncBalanceModal = () => {

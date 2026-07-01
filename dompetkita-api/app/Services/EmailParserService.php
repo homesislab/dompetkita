@@ -30,7 +30,7 @@ class EmailParserService
     ];
 
     /**
-     * Parse a list of raw emails using Gemini AI.
+     * Parse a list of raw emails using OpenAI.
      * Returns structured transaction data for each email.
      */
     public function parseEmails(array $rawEmails, string $apiKey): array
@@ -46,10 +46,10 @@ class EmailParserService
                     $parsed['provider']   = $this->detectProvider($email['from'] ?? '');
                     $results[] = $parsed;
                 }
-                
-                // Add a 2-second delay to prevent hitting Gemini API rate limits (HTTP 429)
-                sleep(2);
-                
+
+                // Small delay to stay well under OpenAI rate limits (HTTP 429)
+                sleep(1);
+
             } catch (\Exception $e) {
                 Log::warning("EmailParserService: failed to parse message {$email['message_id']}: " . $e->getMessage());
             }
@@ -59,7 +59,7 @@ class EmailParserService
     }
 
     /**
-     * Parse a single email using Gemini AI.
+     * Parse a single email using OpenAI.
      */
     private function parseOneEmail(array $email, string $apiKey): ?array
     {
@@ -95,25 +95,27 @@ Email yang akan dianalisis:
 ---
 PROMPT;
 
-        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+        $model = config('services.openai.model', 'gpt-4o-mini');
+        $response = Http::acceptJson()
+            ->withToken($apiKey)
             ->timeout(30)
-            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
-                'contents' => [
-                    ['parts' => [['text' => $prompt]]]
-                ],
-                'generationConfig' => [
-                    'temperature'        => 0.1,
-                    'response_mime_type' => 'application/json',
+            ->post('https://api.openai.com/v1/chat/completions', [
+                'model' => $model,
+                'temperature' => 0.1,
+                'response_format' => ['type' => 'json_object'],
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Kamu mengekstrak notifikasi transaksi keuangan dari email menjadi satu objek JSON yang valid.'],
+                    ['role' => 'user', 'content' => $prompt],
                 ],
             ]);
 
         if (!$response->successful()) {
-            Log::warning('EmailParserService: Gemini API error ' . $response->status());
+            Log::warning('EmailParserService: OpenAI API error ' . $response->status());
             return null;
         }
 
         $result = $response->json();
-        $text   = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
+        $text   = $result['choices'][0]['message']['content'] ?? '{}';
         $text   = str_replace(['```json', '```'], '', trim($text));
         $parsed = json_decode($text, true);
 

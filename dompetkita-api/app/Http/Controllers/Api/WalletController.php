@@ -109,11 +109,32 @@ class WalletController extends Controller
             ->where('household_id', $householdId)
             ->firstOrFail();
 
+        $force = $request->query('force') === '1' || $request->query('force') === 'true';
+
+        // Check if there are transactions tied to this wallet
+        $hasTransactions = \App\Models\Transaction::where('wallet_id', $walletId)
+            ->orWhere('to_wallet_id', $walletId)
+            ->exists();
+
+        if ($hasTransactions && !$force) {
+            return response()->json([
+                'success' => false,
+                'requires_force' => true,
+                'message' => 'Dompet "' . $wallet->name . '" masih memiliki riwayat transaksi. Apakah Anda yakin ingin menghapus dompet ini beserta seluruh transaksinya secara permanen?'
+            ], 409);
+        }
+
+        if ($hasTransactions && $force) {
+            \App\Models\Transaction::where('wallet_id', $walletId)
+                ->orWhere('to_wallet_id', $walletId)
+                ->delete();
+        }
+
         $wallet->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Wallet deleted successfully'
+            'message' => 'Wallet and its transactions deleted successfully'
         ]);
     }
 

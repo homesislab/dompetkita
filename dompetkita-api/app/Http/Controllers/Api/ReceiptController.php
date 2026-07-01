@@ -14,18 +14,18 @@ class ReceiptController extends Controller
             'image' => 'required|image|max:10240', // 10MB Max
         ]);
 
-        // Read the Gemini key from server-side config only. It must never be sent
+        // Read the OpenAI key from server-side config only. It must never be sent
         // from (or exposed to) the browser.
-        $apiKey = config('services.gemini.key');
+        $apiKey = config('services.openai.key');
         if (!$apiKey) {
-            return response()->json(['message' => 'Gemini API key is not configured. Set GEMINI_API_KEY in the backend .env file.'], 500);
+            return response()->json(['message' => 'OpenAI API key is not configured. Set OPENAI_API_KEY in the backend .env file.'], 500);
         }
 
         try {
             $imagePath = $request->file('image')->getRealPath();
             $mimeType  = $request->file('image')->getMimeType();
             $base64Data = base64_encode(file_get_contents($imagePath));
-            
+
             $householdId = $request->input('household_id');
             $categoryList = 'Unknown';
             if ($householdId) {
@@ -66,30 +66,36 @@ Rules:
 If you cannot identify individual items, return "items" as an empty array [].
 PROMPT;
 
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={$apiKey}", [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $prompt],
-                            [
-                                'inline_data' => [
-                                    'mime_type' => $mimeType,
-                                    'data'      => $base64Data
-                                ]
-                            ]
-                        ]
-                    ]
-                ],
-                'generationConfig' => [
-                    'temperature'       => 0.1,
-                    'response_mime_type' => 'application/json',
-                ]
-            ]);
+            $model = config('services.openai.model', 'gpt-4o-mini');
+            $response = Http::timeout(60)
+                ->withToken($apiKey)
+                ->acceptJson()
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => $model,
+                    'temperature' => 0.1,
+                    'response_format' => ['type' => 'json_object'],
+                    'messages' => [
+                        [
+                            'role' => 'system',
+                            'content' => 'You are a receipt OCR and extraction assistant. Always reply with a single valid JSON object.',
+                        ],
+                        [
+                            'role' => 'user',
+                            'content' => [
+                                ['type' => 'text', 'text' => $prompt],
+                                [
+                                    'type' => 'image_url',
+                                    'image_url' => [
+                                        'url' => "data:{$mimeType};base64,{$base64Data}",
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ]);
 
             if (!$response->successful()) {
-                info('Gemini API Error: ' . $response->body());
+                info('OpenAI API Error: ' . $response->body());
                 return response()->json(['message' => 'Failed to process receipt with AI'], 502);
             }
 
@@ -99,7 +105,7 @@ PROMPT;
             $publicUrl = '/storage/' . $path;
 
             $result = $response->json();
-            $text   = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
+            $text   = $result['choices'][0]['message']['content'] ?? '{}';
 
             // Clean markdown if accidentally returned
             $text   = str_replace(['```json', '```'], '', $text);

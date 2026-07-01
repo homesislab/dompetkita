@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\BillReminderController;
 use App\Http\Controllers\Api\ReceiptGroupController;
 use App\Http\Controllers\Api\EmailSyncController;
 use App\Http\Controllers\Api\AiParseController;
+use App\Http\Controllers\Api\AiPlanController;
 
 /*
 |--------------------------------------------------------------------------
@@ -90,6 +91,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // AI-assisted transaction input from free text
         Route::post('/ai/parse-transaction', [AiParseController::class, 'parseTransaction']);
+
+        // AI narrative planner: parse a finance summary and set everything up
+        Route::post('/ai/plan', [AiPlanController::class, 'planAndExecute']);
 
         // Receipt Groups
         Route::get('/receipt-groups', [ReceiptGroupController::class, 'index']);

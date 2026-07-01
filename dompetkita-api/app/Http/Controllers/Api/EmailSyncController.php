@@ -130,12 +130,12 @@ class EmailSyncController extends Controller
             ], 422);
         }
 
-        // Read the Gemini key from server-side config only — never from the client.
-        $apiKey = config('services.gemini.key');
+        // Read the OpenAI key from server-side config only — never from the client.
+        $apiKey = config('services.openai.key');
         if (!$apiKey) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gemini API key belum dikonfigurasi. Set GEMINI_API_KEY di file .env backend.',
+                'message' => 'OpenAI API key belum dikonfigurasi. Set OPENAI_API_KEY di file .env backend.',
             ], 500);
         }
 
@@ -151,7 +151,7 @@ class EmailSyncController extends Controller
                 ]);
             }
 
-            // 2. Parse with Gemini AI
+            // 2. Parse with OpenAI
             $parsed = $this->parser->parseEmails($rawEmails, $apiKey);
 
             // 3. Save as pending EmailSyncLog entries (for display in UI)

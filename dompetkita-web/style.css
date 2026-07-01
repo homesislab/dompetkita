@@ -425,6 +425,15 @@ select.form-input {
     transform: translateY(100%) !important; border: none; border-top: 1px solid var(--border-strong);
   }
   .modal-overlay.open .modal-sheet { transform: translateY(0) !important; }
+
+  /* Move AI button above the dock on mobile so it doesn't cover "More" */
+  .fab-ai-tx {
+    bottom: calc(1.5rem + 72px + 1.25rem);
+    right: 1rem;
+    transform: none;
+  }
+  .fab-ai-tx:hover { transform: scale(1.05); }
+  .fab-ai-tx:active { transform: scale(0.95); }
 }
 
 /* ── Floating Action Button (FAB) ─────────────────────── */
@@ -455,6 +464,31 @@ select.form-input {
 .fab-new-tx:active {
   transform: translate(-50%, 50%) scale(0.95);
 }
+/* Separate AI quick-add pill (bottom-right, distinct from the center + FAB) */
+.fab-ai-tx {
+  position: fixed;
+  right: 1.25rem;
+  bottom: calc(1.5rem + 72px / 2);
+  transform: translateY(50%);
+  height: 48px;
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(99, 102, 241, 0.95));
+  color: #fff;
+  border: 3px solid var(--bg);
+  font-size: 0.95rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: 0 8px 22px rgba(139, 92, 246, 0.45);
+  cursor: pointer;
+  z-index: 110;
+  transition: var(--transition);
+}
+.fab-ai-tx i { font-size: 1.15rem; }
+.fab-ai-tx:hover { transform: translateY(45%) scale(1.05); }
+.fab-ai-tx:active { transform: translateY(50%) scale(0.95); }
 .nav-spacer { flex: 0.6; } /* Space inside the dock for the FAB to overlay */
 /* ── Wallet Cards Redesign ─────────────────────────────── */
 .wallets-grid {

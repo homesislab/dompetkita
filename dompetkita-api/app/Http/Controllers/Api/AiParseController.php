@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
  * AI-assisted transaction input from free text.
  *
  * The user types something like "jajan bakso 25rb pakai cash tadi siang"
- * and Gemini turns it into a structured transaction draft that the
+ * and OpenAI turns it into a structured transaction draft that the
  * frontend uses to pre-fill the New Transaction form.
  */
 class AiParseController extends Controller
@@ -27,11 +27,11 @@ class AiParseController extends Controller
             'text' => 'required|string|max:1000',
         ]);
 
-        $apiKey = config('services.gemini.key');
+        $apiKey = config('services.openai.key');
         if (!$apiKey) {
             return response()->json([
                 'success' => false,
-                'message' => 'Fitur AI belum aktif. Set GEMINI_API_KEY di backend .env.',
+                'message' => 'Fitur AI belum aktif. Set OPENAI_API_KEY di backend .env.',
             ], 500);
         }
 
@@ -73,25 +73,27 @@ User text: "{$userText}"
 PROMPT;
 
         try {
-            $response = Http::timeout(30)->withHeaders([
-                'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={$apiKey}", [
-                'contents' => [
-                    ['parts' => [['text' => $prompt]]],
-                ],
-                'generationConfig' => [
+            $model = config('services.openai.model', 'gpt-4o-mini');
+            $response = Http::timeout(30)
+                ->withToken($apiKey)
+                ->acceptJson()
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => $model,
                     'temperature' => 0.1,
-                    'response_mime_type' => 'application/json',
-                ],
-            ]);
+                    'response_format' => ['type' => 'json_object'],
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You extract structured JSON transactions for an Indonesian family finance app. Always reply with a single valid JSON object.'],
+                        ['role' => 'user', 'content' => $prompt],
+                    ],
+                ]);
 
             if (!$response->successful()) {
-                info('Gemini parse-text error: ' . $response->body());
+                info('OpenAI parse-text error: ' . $response->body());
                 return response()->json(['success' => false, 'message' => 'AI gagal memproses teks.'], 502);
             }
 
             $result = $response->json();
-            $text = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
+            $text = $result['choices'][0]['message']['content'] ?? '{}';
             $text = str_replace(['```json', '```'], '', $text);
             $parsed = json_decode(trim($text), true);
 

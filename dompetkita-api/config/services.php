@@ -41,6 +41,8 @@ return [
 
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
+        // Model tunggal untuk semua proses AI (teks & vision/scan struk).
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
     'google' => [
