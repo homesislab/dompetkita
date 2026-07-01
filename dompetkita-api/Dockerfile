@@ -42,9 +42,8 @@ RUN mkdir -p storage/app/public/receipts \
     && mkdir -p storage/framework/views \
     && mkdir -p storage/framework/cache \
     && mkdir -p bootstrap/cache \
-    && php artisan storage:link \
-    && chown -R www-data:www-data storage bootstrap/cache public/storage \
-    && chmod -R 775 storage bootstrap/cache
+    && chown -R www-data:www-data storage bootstrap/cache public \
+    && chmod -R 775 storage bootstrap/cache public
 
 # Change current user to www
 USER www-data
