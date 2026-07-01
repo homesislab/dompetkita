@@ -1,0 +1,670 @@
+openapi: 3.0.3
+info:
+  title: DompetKita API
+  version: 2.0.0
+  description: |
+    REST API untuk **DompetKita** — aplikasi keuangan keluarga.
+
+    ## Autentikasi
+    - **Aplikasi (user)**: Bearer token dari `POST /login` atau `POST /register` (Laravel Sanctum).
+      Kirim header `Authorization: Bearer <token>`.
+    - **n8n / mesin**: token statis via header `X-Api-Key: <N8N_API_TOKEN>` (atau `Authorization: Bearer <N8N_API_TOKEN>`).
+
+    ## Header AI (opsional)
+    Untuk endpoint berbasis AI (`/receipts/scan`, `/email-sync/fetch`, `/n8n/parse-text`):
+    - `X-AI-Provider: gemini | openai` (override provider default)
+    - `X-OpenAI-Key`, `X-Gemini-Key` (override API key per-request)
+servers:
+  - url: http://localhost:8003/api
+    description: Local development
+  - url: https://your-domain.com/api
+    description: Production
+tags:
+  - name: Auth
+  - name: Households
+  - name: Wallets
+  - name: Categories
+  - name: Transactions
+  - name: Budgets
+  - name: Bill Reminders
+  - name: Pockets
+  - name: Planner
+  - name: Goals
+  - name: Receipts
+  - name: Email Sync
+  - name: Summary
+  - name: Wallet Links
+  - name: SaaS
+  - name: n8n
+security:
+  - sanctumAuth: []
+components:
+  securitySchemes:
+    sanctumAuth:
+      type: http
+      scheme: bearer
+      description: Token Sanctum dari /login atau /register.
+    n8nToken:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: Token statis n8n (env N8N_API_TOKEN).
+  parameters:
+    HouseholdId:
+      name: householdId
+      in: path
+      required: true
+      schema: { type: integer }
+    AiProvider:
+      name: X-AI-Provider
+      in: header
+      required: false
+      schema: { type: string, enum: [gemini, openai] }
+    OpenAiKey:
+      name: X-OpenAI-Key
+      in: header
+      required: false
+      schema: { type: string }
+    GeminiKey:
+      name: X-Gemini-Key
+      in: header
+      required: false
+      schema: { type: string }
+  schemas:
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+    Wallet:
+      type: object
+      properties:
+        id: { type: integer }
+        household_id: { type: integer }
+        name: { type: string }
+        type: { type: string }
+        balance: { type: number, format: float }
+    Transaction:
+      type: object
+      properties:
+        id: { type: integer }
+        household_id: { type: integer }
+        user_id: { type: integer }
+        type: { type: string, enum: [income, expense, transfer] }
+        amount: { type: number }
+        admin_fee: { type: number }
+        wallet_id: { type: integer }
+        to_wallet_id: { type: integer, nullable: true }
+        category_id: { type: integer, nullable: true }
+        description: { type: string, nullable: true }
+        transaction_date: { type: string, format: date-time }
+    TransactionInput:
+      type: object
+      required: [type, amount, wallet_id]
+      properties:
+        type: { type: string, enum: [income, expense, transfer] }
+        amount: { type: number, example: 150000 }
+        admin_fee: { type: number, example: 0 }
+        wallet_id: { type: integer }
+        to_wallet_id: { type: integer, nullable: true, description: Wajib jika type=transfer }
+        category_id: { type: integer, nullable: true }
+        description: { type: string, nullable: true }
+        transaction_date: { type: string, format: date, nullable: true }
+        allocations:
+          type: array
+          description: Opsional. Pembayaran multi-sumber (split funding). Total harus sama dengan amount.
+          items:
+            type: object
+            required: [wallet_id, amount]
+            properties:
+              wallet_id: { type: integer }
+              pocket_id: { type: integer, nullable: true }
+              amount: { type: number }
+    Pocket:
+      type: object
+      properties:
+        id: { type: integer }
+        household_id: { type: integer }
+        name: { type: string }
+        type: { type: string, enum: [child, saving, operational, general] }
+        beneficiary: { type: string, nullable: true }
+        balance: { type: number }
+        is_protected: { type: boolean }
+    Plan:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string, example: pro }
+        price: { type: number, example: 49000 }
+        interval: { type: string, enum: [monthly, yearly, lifetime] }
+        max_households: { type: integer }
+        max_members: { type: integer }
+        max_wallets: { type: integer }
+        features: { type: object, additionalProperties: true }
+    Subscription:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        plan_id: { type: integer }
+        status: { type: string, enum: [active, trialing, canceled, expired] }
+        starts_at: { type: string, format: date-time, nullable: true }
+        ends_at: { type: string, format: date-time, nullable: true }
+    WalletLink:
+      type: object
+      properties:
+        id: { type: integer }
+        wallet_id: { type: integer }
+        owner_household_id: { type: integer }
+        shared_household_id: { type: integer }
+        permission: { type: string, enum: [view, spend] }
+    BudgetStatusItem:
+      type: object
+      properties:
+        budget_id: { type: integer }
+        category: { type: string, nullable: true }
+        period: { type: string }
+        amount: { type: number }
+        daily_allowance: { type: number }
+        today_spent: { type: number }
+        remaining_today: { type: number }
+        status: { type: string, enum: [ok, warning, over] }
+    ParsedTransaction:
+      type: object
+      properties:
+        is_transaction: { type: boolean }
+        type: { type: string, enum: [income, expense] }
+        amount: { type: number }
+        merchant: { type: string, nullable: true }
+        description: { type: string }
+        transaction_date: { type: string, format: date }
+        currency: { type: string, example: IDR }
+paths:
+  /register:
+    post:
+      tags: [Auth]
+      summary: Registrasi user baru
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '201': { description: User dibuat, mengembalikan token }
+  /login:
+    post:
+      tags: [Auth]
+      summary: Login, mengembalikan Bearer token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200': { description: OK }
+        '422': { description: Kredensial salah }
+  /logout:
+    post:
+      tags: [Auth]
+      summary: Logout (revoke token)
+      responses: { '200': { description: OK } }
+  /user:
+    get:
+      tags: [Auth]
+      summary: Profil user saat ini
+      responses: { '200': { description: OK } }
+    put:
+      tags: [Auth]
+      summary: Update profil
+      responses: { '200': { description: OK } }
+  /households:
+    get:
+      tags: [Households]
+      summary: Daftar household milik user
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Households]
+      summary: Buat household
+      responses: { '201': { description: Created } }
+  /households/{householdId}/members:
+    get:
+      tags: [Households]
+      summary: Anggota household
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /households/{householdId}/invite:
+    post:
+      tags: [Households]
+      summary: Undang anggota
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /households/{householdId}/wallets:
+    get:
+      tags: [Wallets]
+      summary: Daftar dompet
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Wallet' }
+    post:
+      tags: [Wallets]
+      summary: Buat dompet
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '201': { description: Created } }
+  /households/{householdId}/wallets/{wallet}:
+    put:
+      tags: [Wallets]
+      summary: Update dompet
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: wallet, in: path, required: true, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Wallets]
+      summary: Hapus dompet
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: wallet, in: path, required: true, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+  /households/{householdId}/categories:
+    get:
+      tags: [Categories]
+      summary: Daftar kategori
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Categories]
+      summary: Buat kategori
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '201': { description: Created } }
+  /households/{householdId}/transactions:
+    get:
+      tags: [Transactions]
+      summary: Daftar transaksi
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Transactions]
+      summary: Buat transaksi (mendukung split funding via allocations)
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+  /households/{householdId}/transactions/{transaction}:
+    put:
+      tags: [Transactions]
+      summary: Update transaksi
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: transaction, in: path, required: true, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+    delete:
+      tags: [Transactions]
+      summary: Hapus transaksi
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: transaction, in: path, required: true, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+  /households/{householdId}/sync-balance:
+    post:
+      tags: [Transactions]
+      summary: Rekalkulasi saldo dompet
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /households/{householdId}/summary:
+    get:
+      tags: [Summary]
+      summary: Ringkasan keuangan household
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /households/{householdId}/budgets:
+    get:
+      tags: [Budgets]
+      summary: Daftar anggaran
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Budgets]
+      summary: Simpan anggaran (daily/weekly/monthly/yearly/once)
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category_id, amount, period, start_date]
+              properties:
+                category_id: { type: integer }
+                amount: { type: number }
+                period: { type: string, enum: [daily, weekly, monthly, yearly, once] }
+                start_date: { type: string, format: date }
+                end_date: { type: string, format: date, nullable: true }
+      responses: { '200': { description: OK } }
+  /households/{householdId}/budget-status:
+    get:
+      tags: [Budgets]
+      summary: Status anggaran harian per kategori (feed reminder)
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  date: { type: string, format: date }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/BudgetStatusItem' }
+  /households/{householdId}/bill-reminders:
+    get:
+      tags: [Bill Reminders]
+      summary: Daftar tagihan berulang
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Bill Reminders]
+      summary: Buat tagihan (repeat none/weekly/monthly/yearly/custom, auto_post)
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '201': { description: Created } }
+  /households/{householdId}/bill-reminders/{billReminder}/pay:
+    post:
+      tags: [Bill Reminders]
+      summary: Bayar tagihan (potong saldo + auto-renew occurrence berikutnya)
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: billReminder, in: path, required: true, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+  /households/{householdId}/pockets:
+    get:
+      tags: [Pockets]
+      summary: Daftar kantong (Dana Anak, tabungan, dll.)
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Pocket' }
+    post:
+      tags: [Pockets]
+      summary: Buat kantong
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '201': { description: Created } }
+  /households/{householdId}/pockets/summary:
+    get:
+      tags: [Pockets]
+      summary: Ringkasan saldo semua kantong
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /households/{householdId}/pockets/{pocketId}/allocate:
+    post:
+      tags: [Pockets]
+      summary: Alokasikan dana dari dompet ke kantong
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: pocketId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallet_id, amount]
+              properties:
+                wallet_id: { type: integer }
+                amount: { type: number }
+      responses: { '200': { description: OK } }
+  /households/{householdId}/planner:
+    get:
+      tags: [Planner]
+      summary: Proyeksi cashflow & simulasi what-if
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /households/{householdId}/goals:
+    get:
+      tags: [Goals]
+      summary: Daftar target/tabungan
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Goals]
+      summary: Buat goal
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '201': { description: Created } }
+  /households/{householdId}/wallet-links:
+    get:
+      tags: [Wallet Links]
+      summary: Dompet yang dibagikan household ini ke household lain
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WalletLink' }
+  /households/{householdId}/wallets/{walletId}/share:
+    post:
+      tags: [Wallet Links]
+      summary: Bagikan dompet ke household lain (view/spend)
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: walletId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shared_household_id]
+              properties:
+                shared_household_id: { type: integer }
+                permission: { type: string, enum: [view, spend], default: view }
+      responses: { '201': { description: Created } }
+  /households/{householdId}/wallet-links/{linkId}:
+    delete:
+      tags: [Wallet Links]
+      summary: Hentikan berbagi dompet
+      parameters:
+        - { $ref: '#/components/parameters/HouseholdId' }
+        - { name: linkId, in: path, required: true, schema: { type: integer } }
+      responses: { '200': { description: OK } }
+  /households/{householdId}/shared-with-me:
+    get:
+      tags: [Wallet Links]
+      summary: Dompet yang dibagikan ke household ini
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /receipts/scan:
+    post:
+      tags: [Receipts]
+      summary: Scan struk (AI vision -> JSON)
+      parameters:
+        - { $ref: '#/components/parameters/AiProvider' }
+        - { $ref: '#/components/parameters/OpenAiKey' }
+        - { $ref: '#/components/parameters/GeminiKey' }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+                household_id: { type: integer }
+      responses:
+        '200': { description: Data struk terekstrak }
+        '500': { description: AI key belum dikonfigurasi / error }
+  /email-sync/fetch:
+    post:
+      tags: [Email Sync]
+      summary: Ambil & parse email notifikasi pembayaran (AI)
+      parameters:
+        - { $ref: '#/components/parameters/AiProvider' }
+        - { $ref: '#/components/parameters/OpenAiKey' }
+        - { $ref: '#/components/parameters/GeminiKey' }
+      responses: { '200': { description: OK } }
+  /email-sync/pending:
+    get:
+      tags: [Email Sync]
+      summary: Daftar hasil parsing yang menunggu konfirmasi
+      responses: { '200': { description: OK } }
+  /plans:
+    get:
+      tags: [SaaS]
+      summary: Daftar paket langganan aktif
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Plan' }
+  /subscription:
+    get:
+      tags: [SaaS]
+      summary: Langganan user saat ini (fallback ke Free)
+      responses: { '200': { description: OK } }
+  /subscription/subscribe:
+    post:
+      tags: [SaaS]
+      summary: Berlangganan / ganti paket (aktivasi bisa dari gateway/n8n)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plan_id: { type: integer }
+                plan_slug: { type: string, example: pro }
+                provider: { type: string, nullable: true }
+                external_ref: { type: string, nullable: true }
+      responses:
+        '201':
+          description: Langganan aktif
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+  /n8n/ping:
+    get:
+      tags: [n8n]
+      summary: Health check n8n
+      security: [{ n8nToken: [] }]
+      responses: { '200': { description: pong } }
+  /n8n/parse-text:
+    post:
+      tags: [n8n]
+      summary: Ubah teks bebas (chat WhatsApp/email) menjadi transaksi terstruktur (AI)
+      security: [{ n8nToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/AiProvider' }
+        - { $ref: '#/components/parameters/OpenAiKey' }
+        - { $ref: '#/components/parameters/GeminiKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, example: 'Bayar Indomaret 150rb pakai GoPay' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  provider: { type: string }
+                  data: { $ref: '#/components/schemas/ParsedTransaction' }
+        '401': { description: Token n8n tidak valid }
+  /n8n/households/{householdId}/wallets:
+    get:
+      tags: [n8n]
+      summary: Daftar dompet (untuk n8n)
+      security: [{ n8nToken: [] }]
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /n8n/households/{householdId}/summary:
+    get:
+      tags: [n8n]
+      summary: Ringkasan bulan berjalan (untuk n8n)
+      security: [{ n8nToken: [] }]
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      responses: { '200': { description: OK } }
+  /n8n/households/{householdId}/transactions:
+    post:
+      tags: [n8n]
+      summary: Catat transaksi dari n8n / WhatsApp bot
+      security: [{ n8nToken: [] }]
+      parameters: [{ $ref: '#/components/parameters/HouseholdId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TransactionInput'
+                - type: object
+                  properties:
+                    user_id: { type: integer, nullable: true, description: Anggota household; default anggota pertama }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '401': { description: Token n8n tidak valid }
+        '422': { description: Validasi gagal }
