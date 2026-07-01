@@ -12,6 +12,7 @@ class Budget extends Model
         'amount',
         'period',
         'start_date',
+        'end_date',
     ];
 
     public function household()

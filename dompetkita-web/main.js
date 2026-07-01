@@ -1138,6 +1138,9 @@ function openTransactionModal(editTx = null) {
         <div class="modal-head">
           <span class="modal-title">${editTx ? 'Edit Transaction' : 'New Transaction'}</span>
           <div style="display:flex;align-items:center;gap:0.5rem">
+            ${!editTx ? `<button type="button" id="ai-text-btn" class="btn btn-ghost btn-sm" style="color:var(--violet);background:rgba(139,92,246,0.12);font-weight:700" title="Ketik transaksi, dibantu AI">
+              <i class="ph-fill ph-sparkle"></i> Ketik (AI)
+            </button>` : ''}
             ${!editTx ? `<button type="button" id="scan-receipt-btn" class="btn btn-ghost btn-sm" style="color:var(--emerald);background:var(--emerald-subtle);font-weight:700" title="Scan struk untuk autofill">
               <i class="ph-fill ph-camera"></i> Scan Struk
             </button>` : ''}
@@ -1154,6 +1157,13 @@ function openTransactionModal(editTx = null) {
         
         <div id="scan-loading" style="display:none;background:var(--emerald-subtle);color:var(--emerald);padding:0.75rem;border-radius:var(--radius);margin-bottom:1.5rem;text-align:center;font-weight:600;font-size:0.9rem;border:1px solid rgba(16,185,129,0.3)">
           <i class="ph-fill ph-spinner-gap" style="animation:spin 1s linear infinite"></i> AI is reading your receipt...
+        </div>
+
+        <div id="ai-text-box" style="display:none;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.35);border-radius:var(--radius);padding:0.85rem;margin-bottom:1.25rem">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--violet);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.4rem"><i class="ph-fill ph-sparkle"></i> Tulis transaksimu, biar AI yang isi</div>
+          <textarea id="ai-text-input" rows="2" placeholder="cth: jajan bakso 25rb pakai Cash tadi siang" style="width:100%;background:var(--surface-2);border-radius:var(--radius);padding:0.65rem 0.85rem;resize:vertical;color:var(--text-1);border:1px solid var(--border)"></textarea>
+          <button type="button" id="ai-parse-btn" class="btn btn-sm btn-full" style="background:linear-gradient(135deg,var(--violet),var(--primary));color:#fff;margin-top:0.6rem"><i class="ph-fill ph-magic-wand"></i> Isi otomatis</button>
+          <div id="ai-text-loading" style="display:none;color:var(--violet);font-size:0.83rem;font-weight:600;margin-top:0.5rem;text-align:center"><i class="ph-fill ph-spinner-gap" style="animation:spin 1s linear infinite"></i> AI sedang membaca…</div>
         </div>
 
         <div class="amount-field">
@@ -1360,6 +1370,59 @@ function openTransactionModal(editTx = null) {
           submitBtn.style.opacity = '1';
         }
         scanInput.value = '';
+      }
+    });
+  }
+
+  // AI text input → autofill
+  const aiBtn = overlay.querySelector('#ai-text-btn');
+  const aiBox = overlay.querySelector('#ai-text-box');
+  if (aiBtn && aiBox) {
+    aiBtn.addEventListener('click', () => {
+      const show = aiBox.style.display === 'none';
+      aiBox.style.display = show ? 'block' : 'none';
+      if (show) overlay.querySelector('#ai-text-input')?.focus();
+    });
+
+    const aiParseBtn = overlay.querySelector('#ai-parse-btn');
+    const aiLoading = overlay.querySelector('#ai-text-loading');
+    aiParseBtn?.addEventListener('click', async () => {
+      const text = (overlay.querySelector('#ai-text-input').value || '').trim();
+      if (!text) { toast('Tulis dulu transaksinya.', 'error'); return; }
+      aiLoading.style.display = 'block';
+      aiParseBtn.disabled = true; aiParseBtn.style.opacity = '0.5';
+      try {
+        const res = await api(`/households/${state.householdId}/ai/parse-transaction`, 'POST', { text });
+        const d = res.data || {};
+
+        // Set the type first so category options + fields update.
+        if (d.type) {
+          const tbtn = overlay.querySelector(`.type-btn[data-type="${d.type}"]`);
+          if (tbtn) tbtn.click();
+        }
+
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el && val !== null && val !== undefined && val !== '') {
+            el.value = val;
+            el.style.borderColor = 'var(--violet)';
+            setTimeout(() => { el.style.borderColor = ''; }, 3000);
+          }
+        };
+        setVal('tx-amount', d.amount);
+        if (d.wallet_id) setVal('tx-wallet', d.wallet_id);
+        if (d.type === 'transfer' && d.to_wallet_id) setVal('tx-to-wallet', d.to_wallet_id);
+        if (d.type !== 'transfer' && d.category_id) setVal('tx-category', d.category_id);
+        setVal('tx-date', d.transaction_date);
+        setVal('tx-desc', d.description);
+
+        aiBox.style.display = 'none';
+        toast('AI selesai mengisi. Cek lalu simpan ya!', 'success');
+      } catch (err) {
+        toast(err.message || 'AI gagal memproses teks.', 'error');
+      } finally {
+        aiLoading.style.display = 'none';
+        aiParseBtn.disabled = false; aiParseBtn.style.opacity = '1';
       }
     });
   }
@@ -2039,7 +2102,7 @@ function pageBudgets() {
         <div class="card-icon"><i class="ph ph-money"></i></div>
         <div class="card-label">Total Spent</div>
         <div class="card-value">Rp ${fmt(expenses.reduce((s, e) => s + Number(e.total), 0))}</div>
-        <div class="card-sub">${summary?.monthly_expense ? Math.round((summary.monthly_expense / summary.monthly_budget) * 100) : 0}% of global budget used</div>
+        <div class="card-sub">${summary?.monthly_budget > 0 ? Math.round((summary.monthly_expense / summary.monthly_budget) * 100) : 0}% of global budget used</div>
       </div>
     </div>
 

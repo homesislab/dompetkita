@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\SummaryController;
 use App\Http\Controllers\Api\BillReminderController;
 use App\Http\Controllers\Api\ReceiptGroupController;
 use App\Http\Controllers\Api\EmailSyncController;
+use App\Http\Controllers\Api\AiParseController;
 
 /*
 |--------------------------------------------------------------------------
@@ -86,6 +87,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/transactions/{transaction}', [TransactionController::class, 'update']);
         Route::post('/sync-balance', [TransactionController::class, 'syncBalance']);
         Route::delete('/transactions/{transaction}', [TransactionController::class, 'destroy']);
+
+        // AI-assisted transaction input from free text
+        Route::post('/ai/parse-transaction', [AiParseController::class, 'parseTransaction']);
 
         // Receipt Groups
         Route::get('/receipt-groups', [ReceiptGroupController::class, 'index']);
