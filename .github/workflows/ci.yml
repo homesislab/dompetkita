@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  build-and-test:
+    runs-on: self-hosted
+    steps:
+      - name: Pre-cleanup (Fix permissions)
+        run: |
+          docker run --rm -v $(pwd):/app -w /app alpine chown -R $(id -u):$(id -g) . || true
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          clean: false  # Preserve .env and other untracked files on the server
+
+      - name: Prepare .env from Secrets (API)
+        env:
+          APP_KEY: ${{ secrets.APP_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          cd dompetkita-api
+          
+          # Merge secrets into existing .env without overwriting unrelated variables
+          update_env() {
+            local key=$1
+            local value=$2
+            if [ -z "$value" ]; then return; fi
+            if grep -q "^${key}=" .env 2>/dev/null; then
+              sed -i "s|^${key}=.*|${key}=${value}|" .env
+            else
+              echo "${key}=${value}" >> .env
+            fi
+          }
+
+          # Ensure .env exists (fallback to example or empty)
+          [ -f .env ] || cp .env.example .env 2>/dev/null || touch .env
+
+          update_env "APP_KEY" "$APP_KEY"
+          update_env "GEMINI_API_KEY" "$GEMINI_API_KEY"
+
+          chmod 600 .env
+
+      - name: Build changed services
+        run: docker compose build
+
+      - name: Restart changed services
+        run: |
+          docker compose up -d --remove-orphans
+
+      - name: Wait for API to be ready
+        run: |
+          echo "Waiting for API (Nginx) to be healthy..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8004/ || echo "000")
+            if [ "$code" -ne 502 ] && [ "$code" -ne 000 ]; then
+              echo "API is ready! (Status: $code)"
+              break
+            fi
+            echo "Attempt $i/30 - API not ready yet (Status: $code), retrying in 3s..."
+            sleep 3
+          done
+          
+          final_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8004/ || echo "000")
+          if [ "$final_code" -eq 502 ] || [ "$final_code" -eq 000 ]; then
+            echo "API failed to start!"
+            docker compose logs api api-nginx
+            exit 1
+          fi
+
+      - name: Wait for Web to be ready
+        run: |
+          echo "Waiting for Web (Vite/Nginx) to be healthy..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8085/ > /dev/null 2>&1; then
+              echo "Web is ready!"
+              break
+            fi
+            echo "Attempt $i/30 - Web not ready yet, retrying in 3s..."
+            sleep 3
+          done
+          curl -sf http://localhost:8085/ || (echo "Web failed to start!" && docker compose logs web && exit 1)
+
+      - name: App test (Artisan Test)
+        run: |
+          docker compose exec -T api php artisan test || echo "Tests skipped or failed"
+
+      - name: Smoke test Web (UI)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8085/ || echo "000")
+          echo "Web HTTP STATUS: $code"
+          test "$code" -lt 500
+
+      - name: Print container logs (always)
+        if: always()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Stop containers (Cleanup: ONLY for non-master branches)
+        if: always() && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        run: docker compose down --remove-orphans

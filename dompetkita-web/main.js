@@ -2,7 +2,6 @@ import './style.css';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = window.location.origin.includes(':5173') ? 'http://localhost:8003/api' : '/api';
-const GEMINI_API_KEY = 'AIzaSyAtVSJkmyz7iJYlZdeFeCB8bVcqYHoLOPk';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
@@ -1311,8 +1310,7 @@ function openTransactionModal(editTx = null) {
           method: 'POST',
           headers: {
             'Accept': 'application/json',
-            'Authorization': 'Bearer ' + state.token,
-            'X-Gemini-Key': GEMINI_API_KEY
+            'Authorization': 'Bearer ' + state.token
           },
           body: formData
         });
@@ -2808,8 +2806,7 @@ window.openProfileModal = () => {
 };
 
 
-// AI Config page removed — key is hardcoded in GEMINI_API_KEY constant
-
+// AI Config page removed
 // BOOTSTRAP
 // ─────────────────────────────────────────────────────────────────────────────
 async function boot() {
