@@ -100,6 +100,6 @@ jobs:
         if: always()
         run: docker compose logs --no-color --tail=200
 
-      - name: Stop containers (Cleanup: ONLY for non-master branches)
+      - name: "Stop containers (Cleanup: ONLY for non-master branches)"
         if: always() && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
         run: docker compose down --remove-orphans
