@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Auto-post due recurring bills (weekly/monthly/etc.) that have auto_post enabled
 Schedule::command('bills:generate')->dailyAt('01:00');
+
+// Send daily budget reminders (over/warning) to the configured n8n webhook
+Schedule::command('budgets:remind')->dailyAt('20:00');

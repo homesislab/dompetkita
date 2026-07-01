@@ -14,6 +14,9 @@ use App\Http\Controllers\Api\ReceiptGroupController;
 use App\Http\Controllers\Api\EmailSyncController;
 use App\Http\Controllers\Api\PocketController;
 use App\Http\Controllers\Api\PlannerController;
+use App\Http\Controllers\Api\N8nController;
+use App\Http\Controllers\Api\PlanController;
+use App\Http\Controllers\Api\WalletLinkController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,6 +34,15 @@ Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallbac
 
 // Gmail OAuth Callback (public, stateless redirect)
 Route::get('/email-sync/callback', [EmailSyncController::class, 'callback']);
+
+// n8n integration (token-authenticated, no user session) — WhatsApp bot -> n8n -> app
+Route::prefix('n8n')->middleware('n8n.token')->group(function () {
+    Route::get('/ping', [N8nController::class, 'ping']);
+    Route::post('/parse-text', [N8nController::class, 'parseText']);
+    Route::get('/households/{householdId}/wallets', [N8nController::class, 'wallets']);
+    Route::get('/households/{householdId}/summary', [N8nController::class, 'summary']);
+    Route::post('/households/{householdId}/transactions', [N8nController::class, 'createTransaction']);
+});
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -131,6 +143,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Planner / Simulasi cashflow
         Route::get('/planner', [PlannerController::class, 'show']);
+
+        // Linked / shared wallets (saling terhubung antar dompet)
+        Route::get('/wallet-links', [WalletLinkController::class, 'index']);
+        Route::post('/wallets/{walletId}/share', [WalletLinkController::class, 'share']);
+        Route::delete('/wallet-links/{linkId}', [WalletLinkController::class, 'unshare']);
+        Route::get('/shared-with-me', [WalletLinkController::class, 'sharedWithMe']);
+
+        // Daily budget status (reminder feed)
+        Route::get('/budget-status', [\App\Http\Controllers\BudgetController::class, 'dailyStatus']);
     });
+
+    // SaaS — plans & subscription (per user)
+    Route::get('/plans', [PlanController::class, 'index']);
+    Route::get('/subscription', [PlanController::class, 'current']);
+    Route::post('/subscription/subscribe', [PlanController::class, 'subscribe']);
 });
 

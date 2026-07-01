@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 
 use App\Models\Budget;
 use App\Models\HouseholdUser;
+use App\Services\BudgetReminderService;
 use Illuminate\Http\JsonResponse;
 
 class BudgetController extends Controller
@@ -69,6 +70,20 @@ class BudgetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Budget deleted successfully'
+        ]);
+    }
+
+    /**
+     * Daily budget status per category (used for the daily reminder feed).
+     */
+    public function dailyStatus(Request $request, $householdId, BudgetReminderService $service): JsonResponse
+    {
+        $this->authorizeHousehold($request->user()->id, $householdId);
+
+        return response()->json([
+            'success' => true,
+            'date' => now()->toDateString(),
+            'data' => $service->report($householdId),
         ]);
     }
 
