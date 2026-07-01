@@ -35,12 +35,27 @@ return [
         ],
     ],
 
+    'ai' => [
+        // Default AI provider for parsing: 'gemini' (default) or 'openai'.
+        'provider' => env('AI_PROVIDER', 'gemini'),
+    ],
+
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
+        'vision_model' => env('GEMINI_VISION_MODEL', 'gemini-flash-lite-latest'),
+        'text_model' => env('GEMINI_TEXT_MODEL', 'gemini-1.5-flash'),
     ],
 
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+    ],
+
+    'n8n' => [
+        // Static token that n8n must send (X-Api-Key or Bearer) to call /api/n8n/*.
+        'token' => env('N8N_API_TOKEN'),
+        // Optional outbound webhook DompetKita posts events to (e.g. daily budget reminders).
+        'webhook_url' => env('N8N_WEBHOOK_URL'),
     ],
 
     'google' => [

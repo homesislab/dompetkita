@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class EmailParserService
@@ -30,26 +29,26 @@ class EmailParserService
     ];
 
     /**
-     * Parse a list of raw emails using Gemini AI.
+     * Parse a list of raw emails using the configured AI provider.
      * Returns structured transaction data for each email.
      */
-    public function parseEmails(array $rawEmails, string $apiKey): array
+    public function parseEmails(array $rawEmails, AiClient $ai): array
     {
         $results = [];
 
         foreach ($rawEmails as $email) {
             try {
-                $parsed = $this->parseOneEmail($email, $apiKey);
+                $parsed = $this->parseOneEmail($email, $ai);
                 if ($parsed) {
                     $parsed['message_id'] = $email['message_id'];
                     $parsed['snippet']    = $email['snippet'] ?? '';
                     $parsed['provider']   = $this->detectProvider($email['from'] ?? '');
                     $results[] = $parsed;
                 }
-                
-                // Add a 2-second delay to prevent hitting Gemini API rate limits (HTTP 429)
-                sleep(2);
-                
+
+                // Small delay to be gentle on provider rate limits (HTTP 429)
+                sleep(1);
+
             } catch (\Exception $e) {
                 Log::warning("EmailParserService: failed to parse message {$email['message_id']}: " . $e->getMessage());
             }
@@ -59,9 +58,9 @@ class EmailParserService
     }
 
     /**
-     * Parse a single email using Gemini AI.
+     * Parse a single email using the configured AI provider.
      */
-    private function parseOneEmail(array $email, string $apiKey): ?array
+    private function parseOneEmail(array $email, AiClient $ai): ?array
     {
         $emailContent = "Subject: {$email['subject']}\nFrom: {$email['from']}\nDate: {$email['date']}\n\n{$email['body']}";
 
@@ -95,31 +94,8 @@ Email yang akan dianalisis:
 ---
 PROMPT;
 
-        $response = Http::withHeaders(['Content-Type' => 'application/json'])
-            ->timeout(30)
-            ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
-                'contents' => [
-                    ['parts' => [['text' => $prompt]]]
-                ],
-                'generationConfig' => [
-                    'temperature'        => 0.1,
-                    'response_mime_type' => 'application/json',
-                ],
-            ]);
-
-        if (!$response->successful()) {
-            Log::warning('EmailParserService: Gemini API error ' . $response->status());
-            return null;
-        }
-
-        $result = $response->json();
-        $text   = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-        $text   = str_replace(['```json', '```'], '', trim($text));
-        $parsed = json_decode($text, true);
-
-        if (!$parsed || json_last_error() !== JSON_ERROR_NONE) {
-            return null;
-        }
+        // Throws on transport/JSON errors; caller logs and continues.
+        $parsed = $ai->textJson($prompt);
 
         // Only return actual transactions
         if (empty($parsed['is_transaction']) || $parsed['is_transaction'] === false) {

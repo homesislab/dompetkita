@@ -130,11 +130,11 @@ class EmailSyncController extends Controller
             ], 422);
         }
 
-        $apiKey = $request->header('X-Gemini-Key') ?: config('services.gemini.key');
-        if (!$apiKey) {
+        $ai = \App\Services\AiClient::fromRequest($request);
+        if (!$ai->hasKey()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gemini API key belum dikonfigurasi.',
+                'message' => 'AI API key belum dikonfigurasi.',
             ], 500);
         }
 
@@ -150,8 +150,8 @@ class EmailSyncController extends Controller
                 ]);
             }
 
-            // 2. Parse with Gemini AI
-            $parsed = $this->parser->parseEmails($rawEmails, $apiKey);
+            // 2. Parse with the configured AI provider (Gemini/OpenAI)
+            $parsed = $this->parser->parseEmails($rawEmails, $ai);
 
             // 3. Save as pending EmailSyncLog entries (for display in UI)
             $savedLogs = [];

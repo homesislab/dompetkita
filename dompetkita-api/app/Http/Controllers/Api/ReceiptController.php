@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\AiClient;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 
 class ReceiptController extends Controller
 {
@@ -14,16 +14,16 @@ class ReceiptController extends Controller
             'image' => 'required|image|max:10240', // 10MB Max
         ]);
 
-        $apiKey = $request->header('X-Gemini-Key') ?: config('services.gemini.key');
-        if (!$apiKey) {
-            return response()->json(['message' => 'Gemini API key is not configured. Please set it in AI Config.'], 500);
+        $ai = AiClient::fromRequest($request);
+        if (!$ai->hasKey()) {
+            return response()->json(['message' => 'AI API key is not configured. Please set it in AI Config.'], 500);
         }
 
         try {
             $imagePath = $request->file('image')->getRealPath();
             $mimeType  = $request->file('image')->getMimeType();
             $base64Data = base64_encode(file_get_contents($imagePath));
-            
+
             $householdId = $request->input('household_id');
             $categoryList = 'Unknown';
             if ($householdId) {
@@ -64,48 +64,13 @@ Rules:
 If you cannot identify individual items, return "items" as an empty array [].
 PROMPT;
 
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={$apiKey}", [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $prompt],
-                            [
-                                'inline_data' => [
-                                    'mime_type' => $mimeType,
-                                    'data'      => $base64Data
-                                ]
-                            ]
-                        ]
-                    ]
-                ],
-                'generationConfig' => [
-                    'temperature'       => 0.1,
-                    'response_mime_type' => 'application/json',
-                ]
-            ]);
-
-            if (!$response->successful()) {
-                info('Gemini API Error: ' . $response->body());
-                return response()->json(['message' => 'Failed to process receipt with AI'], 502);
-            }
-
-            // Save the image
+            // Save the image first so we can return its public URL
             $fileName = time() . '_' . $request->file('image')->getClientOriginalName();
             $path = $request->file('image')->storeAs('receipts', $fileName, 'public');
             $publicUrl = '/storage/' . $path;
 
-            $result = $response->json();
-            $text   = $result['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
-
-            // Clean markdown if accidentally returned
-            $text   = str_replace(['```json', '```'], '', $text);
-            $parsed = json_decode(trim($text), true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['message' => 'AI returned malformed data', 'raw' => $text], 500);
-            }
+            // Parse with the configured AI provider (Gemini/OpenAI)
+            $parsed = $ai->visionJson($prompt, $base64Data, $mimeType);
 
             // Ensure items key always exists
             if (!isset($parsed['items'])) {
@@ -119,8 +84,8 @@ PROMPT;
             return response()->json($parsed);
 
         } catch (\Exception $e) {
-            info($e->getMessage());
-            return response()->json(['message' => 'An error occurred while scanning the receipt'], 500);
+            info('ReceiptController scan error: ' . $e->getMessage());
+            return response()->json(['message' => 'An error occurred while scanning the receipt: ' . $e->getMessage()], 500);
         }
     }
 }
