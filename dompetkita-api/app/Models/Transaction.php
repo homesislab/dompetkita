@@ -54,4 +54,9 @@ class Transaction extends Model
     {
         return $this->belongsTo(ReceiptGroup::class);
     }
+
+    public function allocations()
+    {
+        return $this->hasMany(TransactionAllocation::class);
+    }
 }

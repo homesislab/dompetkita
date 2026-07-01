@@ -32,4 +32,9 @@ class Household extends Model
     {
         return $this->hasMany(BillReminder::class);
     }
+
+    public function pockets()
+    {
+        return $this->hasMany(Pocket::class);
+    }
 }

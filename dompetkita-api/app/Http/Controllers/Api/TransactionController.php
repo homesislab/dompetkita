@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\HouseholdUser;
+use App\Models\Pocket;
 use App\Models\Transaction;
+use App\Models\TransactionAllocation;
 use App\Models\Wallet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,10 @@ class TransactionController extends Controller
 
     /**
      * Store a new transaction atomically.
+     *
+     * Supports optional split funding via `allocations`: an expense can be paid
+     * from several wallets and/or pockets at once. When `allocations` is omitted,
+     * the classic single-wallet behavior is preserved (backward compatible).
      */
     public function store(Request $request, $householdId): JsonResponse
     {
@@ -47,43 +53,19 @@ class TransactionController extends Controller
             'description' => 'nullable|string',
             'transaction_date' => 'required|date',
             'image_path' => 'nullable|string',
+            'allocations' => 'nullable|array',
+            'allocations.*.wallet_id' => 'required_with:allocations|exists:wallets,id',
+            'allocations.*.pocket_id' => 'nullable|exists:pockets,id',
+            'allocations.*.amount' => 'required_with:allocations|numeric|min:0.01',
         ]);
 
         try {
             DB::transaction(function () use ($request, $householdId) {
                 $adminFee = (float) ($request->admin_fee ?? 0);
+                $allocations = $request->input('allocations', []);
 
-                // Lock the source wallet
-                $wallet = Wallet::where('id', $request->wallet_id)
-                    ->where('household_id', $householdId)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                // Logic based on transaction type
-                if ($request->type === 'expense') {
-                    $wallet->balance -= $request->amount;
-                    $wallet->save();
-                } elseif ($request->type === 'income') {
-                    $wallet->balance += $request->amount;
-                    $wallet->save();
-                } elseif ($request->type === 'transfer') {
-
-                    // Destination wallet lock & check
-                    $toWallet = Wallet::where('id', $request->to_wallet_id)
-                        ->where('household_id', $householdId)
-                        ->lockForUpdate()
-                        ->firstOrFail();
-
-                    // Smart Transfer: source deducted (amount + admin_fee), destination receives only amount
-                    $wallet->balance -= ($request->amount + $adminFee);
-                    $wallet->save();
-
-                    $toWallet->balance += $request->amount;
-                    $toWallet->save();
-                }
-
-                // Record the transaction
-                Transaction::create([
+                // Record the transaction (allocations reference its id)
+                $transaction = Transaction::create([
                     'household_id' => $householdId,
                     'user_id' => $request->user()->id,
                     'type' => $request->type,
@@ -96,6 +78,77 @@ class TransactionController extends Controller
                     'transaction_date' => $request->transaction_date,
                     'image_path' => $request->image_path,
                 ]);
+
+                if (!empty($allocations) && $request->type === 'expense') {
+                    // ---- Split funding path ----
+                    $sum = 0.0;
+                    foreach ($allocations as $alloc) {
+                        $sum += (float) $alloc['amount'];
+                    }
+                    if (round($sum, 2) !== round((float) $request->amount, 2)) {
+                        throw new \Exception(
+                            'Total alokasi (' . $sum . ') harus sama dengan nominal transaksi (' . $request->amount . ').'
+                        );
+                    }
+
+                    foreach ($allocations as $alloc) {
+                        $allocWallet = Wallet::where('id', $alloc['wallet_id'])
+                            ->where('household_id', $householdId)
+                            ->lockForUpdate()
+                            ->firstOrFail();
+                        $allocWallet->balance -= (float) $alloc['amount'];
+                        $allocWallet->save();
+
+                        $pocketId = $alloc['pocket_id'] ?? null;
+                        if ($pocketId) {
+                            $pocket = Pocket::where('id', $pocketId)
+                                ->where('household_id', $householdId)
+                                ->lockForUpdate()
+                                ->firstOrFail();
+
+                            if ($pocket->is_protected && (float) $pocket->balance < (float) $alloc['amount']) {
+                                throw new \Exception("Kantong '{$pocket->name}' dilindungi dan saldonya tidak cukup.");
+                            }
+                            $pocket->balance -= (float) $alloc['amount'];
+                            $pocket->save();
+                        }
+
+                        TransactionAllocation::create([
+                            'transaction_id' => $transaction->id,
+                            'wallet_id' => $alloc['wallet_id'],
+                            'pocket_id' => $pocketId,
+                            'amount' => $alloc['amount'],
+                        ]);
+                    }
+
+                    return;
+                }
+
+                // ---- Classic single-wallet path ----
+                $wallet = Wallet::where('id', $request->wallet_id)
+                    ->where('household_id', $householdId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($request->type === 'expense') {
+                    $wallet->balance -= $request->amount;
+                    $wallet->save();
+                } elseif ($request->type === 'income') {
+                    $wallet->balance += $request->amount;
+                    $wallet->save();
+                } elseif ($request->type === 'transfer') {
+                    $toWallet = Wallet::where('id', $request->to_wallet_id)
+                        ->where('household_id', $householdId)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    // Smart Transfer: source deducted (amount + admin_fee), destination receives only amount
+                    $wallet->balance -= ($request->amount + $adminFee);
+                    $wallet->save();
+
+                    $toWallet->balance += $request->amount;
+                    $toWallet->save();
+                }
             });
 
             return response()->json([
@@ -163,7 +216,7 @@ class TransactionController extends Controller
 
                 // 2. APPLY NEW TRANSACTION
                 $newAdminFee = (float) ($request->admin_fee ?? 0);
-                
+
                 $wallet = Wallet::where('id', $request->wallet_id)
                     ->where('household_id', $householdId)
                     ->lockForUpdate()
@@ -175,12 +228,12 @@ class TransactionController extends Controller
                     $wallet->balance += $request->amount;
                 } elseif ($request->type === 'transfer') {
                     $wallet->balance -= ($request->amount + $newAdminFee);
-                    
+
                     $toWallet = Wallet::where('id', $request->to_wallet_id)
                         ->where('household_id', $householdId)
                         ->lockForUpdate()
                         ->firstOrFail();
-                    
+
                     $toWallet->balance += $request->amount;
                     $toWallet->save();
                 }
